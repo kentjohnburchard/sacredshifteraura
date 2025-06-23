@@ -1,0 +1,14 @@
+{
+  // ... existing references ...
+  "compilerOptions": {
+    "baseUrl": ".", // This makes paths relative to the project root
+    "paths": {
+      "@temp/*": ["./temp-components/*"] // Define the alias
+    }
+  },
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
