@@ -72,9 +72,6 @@ export const ModuleDeveloperKit: React.FC = () => {
     setBuildProgress(0);
     
     // Simulate build process
-    // NOTE: In a real production environment, this would involve a backend service
-    // to compile and package the module. Direct file system access for compilation
-    // is not available in the browser.
     const interval = setInterval(() => {
       setBuildProgress(prev => {
         if (prev >= 100) {
@@ -91,8 +88,6 @@ export const ModuleDeveloperKit: React.FC = () => {
     setTestResults(null);
     
     // Simulate test running
-    // NOTE: In a real production environment, this would involve a backend service
-    // to run tests against the module.
     setTimeout(() => {
       setTestResults({
         passed: Math.floor(Math.random() * 10) + 10,
@@ -666,7 +661,7 @@ export class ${moduleName.replace(/\s+/g, '')}Module implements IModule {
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div 
-                          className="h-full bg-purple-500" 
+                          className="bg-purple-500 h-2 rounded-full transition-all duration-300" 
                           style={{ width: `${buildProgress}%` }}
                         ></div>
                       </div>

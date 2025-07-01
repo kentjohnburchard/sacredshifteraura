@@ -1,39 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { ModuleManager } from '../services/ModuleManager';
 import { ModuleErrorSummary, ModuleActivitySummary } from '../types';
-import { useSacredSystem } from '../hooks/useSacredSystem'; // Assuming this hook provides soulState
-import { SystemSoulState } from '../contexts/RSIContext'; // Import SystemSoulState type
-
-import {
-  Brain,
-  Activity,
-  AlertTriangle,
-  TrendingUp,
-  Shield,
+import { 
+  Brain, 
+  Activity, 
+  AlertTriangle, 
+  TrendingUp, 
+  Shield, 
   Zap,
   Eye,
   Clock,
-  BarChart3,
-  Heart,    // For Heart Chakra
-  Gem,      // For Root Chakra
-  Flower,   // For Sacral Chakra
-  Sun,      // For Solar Plexus (using Sun as a placeholder for light/power)
-  MessageCircle, // For Throat Chakra (using MessageCircle for communication)
-  Sparkles  // For Crown/Third Eye (using Sparkles for higher insight)
+  BarChart3
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion'; // For animation of chakra feedback
 
 interface ConsciousnessMonitorProps {
   moduleManager: ModuleManager;
   className?: string;
 }
 
-const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
-  moduleManager,
-  className = ''
+const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({ 
+  moduleManager, 
+  className = '' 
 }) => {
-  const { soulState } = useSacredSystem(); // <--- Get soulState from your hook
-
   const [errorSummary, setErrorSummary] = useState<ModuleErrorSummary[]>([]);
   const [activitySummary, setActivitySummary] = useState<ModuleActivitySummary[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<number>(24);
@@ -77,31 +65,12 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
-
+    
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
     return `${Math.floor(diffMins / 1440)}d ago`;
   };
-
-  // --- Chakra Alignment Feedback Logic ---
-  const getChakraInfo = (chakra: SystemSoulState['dominantChakra']) => {
-    if (!chakra) return null; // Handle null/undefined dominantChakra
-
-    switch (chakra) {
-      case 'root': return { label: 'Root Chakra', icon: Gem, color: 'bg-red-700/30 text-red-300 border-red-500/30' };
-      case 'sacral': return { label: 'Sacral Chakra', icon: Flower, color: 'bg-orange-700/30 text-orange-300 border-orange-500/30' };
-      case 'solar_plexus': return { label: 'Solar Plexus Chakra', icon: Sun, color: 'bg-yellow-700/30 text-yellow-300 border-yellow-500/30' };
-      case 'heart': return { label: 'Heart Chakra', icon: Heart, color: 'bg-green-700/30 text-green-300 border-green-500/30' };
-      case 'throat': return { label: 'Throat Chakra', icon: MessageCircle, color: 'bg-blue-700/30 text-blue-300 border-blue-500/30' };
-      case 'third_eye': return { label: 'Third Eye Chakra', icon: Eye, color: 'bg-indigo-700/30 text-indigo-300 border-indigo-500/30' };
-      case 'crown': return { label: 'Crown Chakra', icon: Sparkles, color: 'bg-purple-700/30 text-purple-300 border-purple-500/30' };
-      default: return { label: 'Unknown Chakra', icon: null, color: 'bg-gray-700/30 text-gray-300 border-gray-500/30' };
-    }
-  };
-
-  const dominantChakraInfo = soulState?.dominantChakra ? getChakraInfo(soulState.dominantChakra) : null;
-  // --- End Chakra Alignment Feedback Logic ---
 
   return (
     <div className={`bg-slate-900/50 rounded-xl border border-purple-500/20 ${className}`}>
@@ -114,32 +83,12 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
               Akashic Analysis
             </div>
           </div>
-
+          
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-purple-400" />
             <span className="text-sm text-purple-300">Observing Self</span>
           </div>
         </div>
-
-        {/* Chakra Alignment Feedback */}
-        <AnimatePresence>
-          {dominantChakraInfo && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className={`mt-4 mb-4 p-3 rounded-lg border flex items-center gap-2 ${dominantChakraInfo.color}`}
-            >
-              {dominantChakraInfo.icon && <dominantChakraInfo.icon className="w-4 h-4 flex-shrink-0" />}
-              <span className="text-sm">
-                **{dominantChakraInfo.label}** Activation Detected – Integrating with coherence and compassion.
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {/* End Chakra Alignment Feedback */}
-
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -190,7 +139,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
               <TrendingUp className="w-5 h-5 text-green-400" />
               <h3 className="text-lg font-semibold text-white">Module Activity Patterns</h3>
             </div>
-
+            
             {activitySummary.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -201,7 +150,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
                 {activitySummary.map((summary) => {
                   const totalActivity = summary.heartbeatCount + summary.userActionCount + summary.dataOperationCount;
                   const statusColor = getStatusColor(summary.currentState);
-
+                  
                   return (
                     <div
                       key={summary.moduleId}
@@ -212,7 +161,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
                           <h4 className="font-medium text-white">{summary.moduleName}</h4>
                           <p className="text-sm text-gray-400 font-mono">{summary.moduleId}</p>
                         </div>
-                        <div className="px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${statusColor}">
+                        <div className={`px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${statusColor}`}>
                           {getStatusIcon(summary.currentState)}
                           {summary.currentState}
                         </div>
@@ -253,7 +202,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
               <AlertTriangle className="w-5 h-5 text-red-400" />
               <h3 className="text-lg font-semibold text-white">Error Analysis & Karma</h3>
             </div>
-
+            
             {errorSummary.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -263,7 +212,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
               <div className="space-y-3">
                 {errorSummary.map((summary) => {
                   const statusColor = getStatusColor(summary.status);
-
+                  
                   return (
                     <div
                       key={summary.moduleId}
@@ -274,7 +223,7 @@ const ConsciousnessMonitor: React.FC<ConsciousnessMonitorProps> = ({
                           <h4 className="font-medium text-white">{summary.moduleName}</h4>
                           <p className="text-sm text-gray-400 font-mono">{summary.moduleId}</p>
                         </div>
-                        <div className="px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${statusColor}">
+                        <div className={`px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${statusColor}`}>
                           {getStatusIcon(summary.status)}
                           {summary.status}
                         </div>

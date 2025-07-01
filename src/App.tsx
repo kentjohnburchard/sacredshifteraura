@@ -1,330 +1,393 @@
-// src/App.tsx
-import React, { useState, useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate, useNavigate } from 'react-router-dom';
-
-// Core Components
-import UserDashboard from './components/UserDashboard';
-import UserBenefitsPage from './components/UserBenefitsPage';
+import React, { useState, useEffect } from 'react';
+import Header from './components/Header';
 import EventStream from './components/EventStream';
 import ModuleOrchestrator from './components/ModuleOrchestrator';
 import ConsciousnessMonitor from './components/ConsciousnessMonitor';
+import UserDashboard from './components/UserDashboard';
 import { ModuleTogglePanel } from './components/ModuleTogglePanel';
 import { SystemIntegrityMonitor } from './components/SystemIntegrityMonitor';
 import { SystemMetricsPanel } from './components/SystemMetricsPanel';
-import { AuraGuidancePanel } from './components/AuraGuidancePanel';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import { SharedIntentionsManager } from './components/SharedIntentionsManager';
-
-// Services
 import { ModuleManager } from './services/ModuleManager';
 import { GlobalEventHorizon } from './services/GlobalEventHorizon';
 import { MetricsCollector } from './services/MetricsCollector';
-// CORRECTED: Fixed the SystemIntegrityService import syntax
 import { SystemIntegrityService } from './services/SystemIntegrityService';
 import { ConsciousnessOptimizer } from './services/ConsciousnessOptimizer';
 import { EventBus } from './services/EventBus';
-import { PHREngine } from './services/PHREngine';
-import { CodeWeavingEngine, ArchitecturalHarmonizer } from './services/self-generative-core';
-import { SupabaseService } from './services/SupabaseService';
-
-// Contexts
-import { useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ChakraProvider } from './contexts/ChakraContext';
 import { XPProvider } from './contexts/XPProvider';
 import { SacredCircleProvider } from './contexts/SacredCircleContext';
-import { SyncProvider } from './contexts/SyncContext';
-import { RSIProvider } from './contexts/RSIContext';
-
-// Wrappers & Overlays
 import { AuthWrapper } from './components/AuthWrapper';
 import { AdminAccessControl } from './components/AdminAccessControl';
-import { RSIController } from './components/RSI/RSIController';
-import { PHREOverlay } from './components/PHREOverlay';
-
-// Icons
-import {
-  Activity, Eye, Zap, Users, Settings, Store, Code, BarChart, Shield, Gauge,
-  ShieldAlert, Lock, MessageCircle, Heart, HardDrive, Cloud, Key
+import { 
+  Activity, 
+  Eye, 
+  Zap, 
+  Target, 
+  Users, 
+  Settings, 
+  Store, 
+  Code, 
+  BarChart, 
+  Shield,
+  Gauge,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
 
-// Hooks
-import { usePresenceTracker } from './hooks/usePresenceTracker';
-
-// Lazy-loaded Admin Components - Fixed to handle named exports properly
-const ModuleMarketplace = React.lazy(() =>
-  import('./components/marketplace/ModuleMarketplace').then(module => ({
-    default: module.ModuleMarketplace || module.default
-  }))
-);
-const ModuleDeveloperKit = React.lazy(() =>
-  import('./components/developer/ModuleDeveloperKit').then(module => ({
-    default: module.ModuleDeveloperKit || module.default
-  }))
-);
-const ModuleAnalytics = React.lazy(() =>
-  import('./components/developer/ModuleAnalytics').then(module => ({
-    default: module.ModuleAnalytics || module.default
-  }))
-);
-const SacredCircle = React.lazy(() =>
-  import('./modules/SacredCircle/components/SacredCircle').then(module => ({
-    default: module.SacredCircle || module.default
-  }))
-);
-const EventsPage = React.lazy(() =>
-  import('./components/EventsPage').then(module => ({
-    default: module.default
-  }))
-);
-
-// --- CRUCIAL FIX: Simplified the lazy import for GuardianProtocols ---
-// This component uses 'export default GuardianProtocols;' so no .then() chain is needed.
-const GuardianProtocols = React.lazy(() => import('./components/GuardianProtocols'));
-
-
-// Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white">
-        <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin"></div>
-        <p className="ml-4 text-purple-300">Authenticating...</p>
-      </div>
-    );
-  }
-  if (!user) return <Navigate to="/" replace />;
-  return <>{children}</>;
-};
-
-// AppContent component: Handles application logic and routing within the Router context
-const AppContent: React.FC<{
-  moduleManager: ModuleManager;
-  metricsCollector: MetricsCollector;
-  integrityService: SystemIntegrityService;
-  optimizer: ConsciousnessOptimizer;
-  phrEngine: PHREngine;
-  codeWeavingEngine: CodeWeavingEngine;
-  architecturalHarmonizer: ArchitecturalHarmonizer;
-  eventBus: EventBus;
-  supabase: any; // Pass supabase client down
-}> = ({
-  moduleManager,
-  metricsCollector,
-  integrityService,
-  optimizer,
-  phrEngine,
-  codeWeavingEngine,
-  architecturalHarmonizer,
-  eventBus,
-  supabase, // Destructure supabase
-}) => {
-  const { user, isAdmin } = useAuth(); // Safely called inside Router context
-  const navigate = useNavigate(); // Safely called inside Router context
-
-  const [activeAdminTab, setActiveAdminTab] = useState<'orchestration' | 'consciousness' | 'events' | 'circle' | 'toggle' | 'marketplace' | 'developer' | 'analytics' | 'integrity' | 'metrics' | 'guardian-protocols' | 'shared-intentions'>('orchestration');
-
-  usePresenceTracker(supabase, user?.id); // Safely called with `user` defined
-
-  const handleToggleAdminMode = () => {
-    if (isAdmin) {
-      navigate('/admin');
-    }
-  };
+function App() {
+  // Core system services
+  const [moduleManager] = useState(() => new ModuleManager());
+  const [geh] = useState(() => GlobalEventHorizon.getInstance());
+  const [eventBus] = useState(() => EventBus.getInstance());
+  const [metricsCollector] = useState(() => MetricsCollector.getInstance());
+  const [integrityService] = useState(() => SystemIntegrityService.getInstance());
+  const [optimizer] = useState(() => ConsciousnessOptimizer.getInstance(moduleManager));
+  
+  const [activeTab, setActiveTab] = useState<'orchestration' | 'consciousness' | 'events' | 'circle' | 'toggle' | 'marketplace' | 'developer' | 'analytics' | 'integrity' | 'metrics'>('orchestration');
+  const [isUserMode, setIsUserMode] = useState(true); // Default to user mode
+  
+  // Dynamic component loading states
+  const [circleComponent, setCircleComponent] = useState<React.ComponentType | null>(null);
+  const [eventsComponent, setEventsComponent] = useState<React.ComponentType | null>(null);
+  const [marketplaceComponent, setMarketplaceComponent] = useState<React.ComponentType | null>(null);
+  const [developerComponent, setDeveloperComponent] = useState<React.ComponentType | null>(null);
+  const [analyticsComponent, setAnalyticsComponent] = useState<React.ComponentType | null>(null);
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false);
 
   useEffect(() => {
-    // Initialize and start various services
+    // Initialize core system services
     metricsCollector.start();
     integrityService.start();
     optimizer.start();
-    phrEngine.start();
-    codeWeavingEngine.start();
-    architecturalHarmonizer.start();
-
+    
+    // Initialize OS with default consciousness expansion Telos
     const initializeOS = async () => {
-      eventBus.publish('os:system:startup', 'SACRED_SHIFTER_CORE', { version: '1.0.0' }, ['system:core']);
+      // Publish system startup event via EventBus for better type safety
+      eventBus.publish(
+        'os:system:startup',
+        'SACRED_SHIFTER_CORE',
+        { 
+          version: '1.0.0', 
+          mode: 'consciousness_evolution_mode' 
+        },
+        ['system:core', 'consciousness:awakening', 'os:initialization', 'sacred:shifter'],
+        { startup_time: Date.now() }
+      );
+
+      // Set initial user state to trigger Telos selection
       moduleManager.setOSUserState({
         id: 'system-init',
         name: 'Sacred Shifter Initialization',
         currentContext: 'startup',
-        essenceLabels: ['consciousness:expansion']
+        essenceLabels: ['consciousness:expansion', 'awareness:heightened', 'user:transcendence', 'soul:awakening']
       });
 
-      // Simulate system activities
-      const interval = setInterval(() => {
+      // Simulate some background spiritual activity
+      const activityInterval = setInterval(() => {
         const activities = [
-          { type: 'module:heartbeat', source: 'com.metaphysical-os.modules.authentication', labels: ['system:health'] },
-          { type: 'data:operation', source: 'com.metaphysical-os.modules.data-harmonizer', labels: ['data:flow'] },
-          { type: 'user:action', source: 'com.metaphysical-os.modules.sacred-circle', labels: ['user:interaction'] }
+          { type: 'module:heartbeat', source: 'com.metaphysical-os.modules.authentication', labels: ['system:health', 'module:active', 'consciousness:pulse'] },
+          { type: 'data:operation', source: 'com.metaphysical-os.modules.data-harmonizer', labels: ['data:flow', 'processing:harmonic', 'frequency:alignment'] },
+          { type: 'user:action', source: 'com.metaphysical-os.modules.sacred-circle', labels: ['user:interaction', 'community:resonance', 'soul:connection'] }
         ];
-        const activity = activities[Math.floor(Math.random() * activities.length)];
-        eventBus.publish(activity.type, activity.source, { simulated: true }, activity.labels);
-      }, 3000 + Math.random() * 2000);
 
-      return () => clearInterval(interval);
+        const activity = activities[Math.floor(Math.random() * activities.length)];
+        eventBus.publish(
+          activity.type,
+          activity.source,
+          { simulated: true, sacred_shifter: true },
+          activity.labels,
+          { background_activity: true }
+        );
+      }, 3000 + Math.random() * 2000); // Random interval between 3-5 seconds
+
+      return () => clearInterval(activityInterval);
     };
 
     const cleanup = initializeOS();
-
-    // Cleanup function for when the component unmounts
+    
     return () => {
-      cleanup.then(fn => fn && fn()); // Ensure cleanup is called if it's a promise
+      cleanup.then(fn => fn && fn());
       metricsCollector.stop();
       integrityService.stop();
       optimizer.stop();
-      phrEngine.stop();
-      codeWeavingEngine.stop();
-      architecturalHarmonizer.stop();
     };
-  }, []); // Empty dependency array means this effect runs once on mount and cleans up on unmount
+  }, [moduleManager, geh, eventBus, metricsCollector, integrityService, optimizer]);
 
-  // Configuration for admin navigation tabs
-  const adminTabs = [
+  // Dynamic component loading for admin tabs
+  useEffect(() => {
+    if (!isUserMode && (activeTab === 'circle' || activeTab === 'events' || activeTab === 'marketplace' || activeTab === 'developer' || activeTab === 'analytics')) {
+      const loadComponent = async () => {
+        setIsLoadingComponents(true);
+        
+        try {
+          if (activeTab === 'circle') {
+            const module = await moduleManager.ensureModuleWithCapability('social-interaction');
+            if (module) {
+              const exposedItems = module.getExposedItems();
+              if (exposedItems.Component && typeof exposedItems.Component === 'function') {
+                const ComponentFunction = exposedItems.Component();
+                setCircleComponent(() => ComponentFunction);
+              }
+            }
+          } else if (activeTab === 'events') {
+            const module = await moduleManager.ensureModuleWithCapability('event-management');
+            if (module) {
+              const exposedItems = module.getExposedItems();
+              if (exposedItems.Component && typeof exposedItems.Component === 'function') {
+                const ComponentFunction = exposedItems.Component();
+                setEventsComponent(() => ComponentFunction);
+              }
+            }
+          } else if (activeTab === 'marketplace') {
+            // Import the marketplace component
+            const { ModuleMarketplace } = await import('./components/marketplace');
+            setMarketplaceComponent(() => ModuleMarketplace);
+          } else if (activeTab === 'developer') {
+            // Import the developer component
+            const { ModuleDeveloperKit } = await import('./components/developer');
+            setDeveloperComponent(() => ModuleDeveloperKit);
+          } else if (activeTab === 'analytics') {
+            // Import the analytics component
+            const { ModuleAnalytics } = await import('./components/developer');
+            setAnalyticsComponent(() => ModuleAnalytics);
+          }
+        } catch (error) {
+          console.error('Failed to load dynamic component:', error);
+        } finally {
+          setIsLoadingComponents(false);
+        }
+      };
+
+      loadComponent();
+    }
+  }, [activeTab, isUserMode, moduleManager]);
+
+  const tabs = [
     { id: 'orchestration', label: 'Module Orchestration', icon: Activity, adminOnly: false },
     { id: 'consciousness', label: 'Self-Reflection', icon: Eye, adminOnly: false },
     { id: 'events', label: 'Event Horizon', icon: Zap, adminOnly: false },
     { id: 'circle', label: 'Sacred Circle', icon: Users, adminOnly: false },
     { id: 'marketplace', label: 'Module Store', icon: Store, adminOnly: false },
-    { id: 'shared-intentions', label: 'Shared Intentions', icon: Heart, adminOnly: false },
     { id: 'developer', label: 'Developer Tools', icon: Code, adminOnly: true },
     { id: 'analytics', label: 'Analytics', icon: BarChart, adminOnly: true },
     { id: 'integrity', label: 'System Integrity', icon: Shield, adminOnly: true },
     { id: 'metrics', label: 'Performance Metrics', icon: Gauge, adminOnly: true },
-    { id: 'toggle', label: 'Module Control', icon: Settings, adminOnly: true },
-    { id: 'guardian-protocols', label: 'Guardian Protocols', icon: Shield, adminOnly: true }
+    { id: 'toggle', label: 'Module Control', icon: Settings, adminOnly: true }
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-      <Routes>
-        {/* New Landing Page */}
-        <Route path="/" element={<UserBenefitsPage />} />
-
-        {/* Dashboard (protected route for authenticated users) */}
-        <Route path="/dashboard/*" element={
-          <ProtectedRoute>
-            <UserDashboard moduleManager={moduleManager} isAdmin={isAdmin} onToggleAdminMode={handleToggleAdminMode} />
-            <RSIController onNavigate={(id) => setActiveAdminTab(id as any)} />
-            <PHREOverlay />
-          </ProtectedRoute>
-        } />
-
-        {/* Admin Panel (protected route, further restricted by AdminAccessControl) */}
-        <Route path="/admin/*" element={
-          <ProtectedRoute>
-            <AdminAccessControl fallbackComponent={
-              <div className="bg-slate-900 p-12 text-white text-center">
-                <ShieldAlert className="w-8 h-8 mx-auto mb-4 text-red-400" />
-                <h2 className="text-xl font-semibold mb-2">Admin Access Required</h2>
-                <p>This area is restricted.</p>
-              </div>
-            }>
-              <Header isUserMode={false} onToggleMode={() => navigate('/dashboard')} isAdmin={isAdmin} />
-              <main className="container mx-auto px-6 py-8">
-                {/* Admin Tabs Navigation */}
-                <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                  {adminTabs.map(tab => {
-                    const Icon = tab.icon;
-                    // Show lock icon only if tab is adminOnly AND current user is NOT an admin
-                    const showLockIcon = tab.adminOnly && !isAdmin;
-                    const tabButton = (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveAdminTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap ${
-                          activeAdminTab === tab.id ? 'bg-purple-600 text-white' : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        {tab.label}
-                        {showLockIcon && <Lock className="w-3 h-3 text-amber-400 ml-1" />}
-                      </button>
-                    );
-                    // Wrap with AdminAccessControl if the tab is truly admin-only and the user is not an admin,
-                    // otherwise, just render the button. Note: AdminAccessControl around tabButton is probably
-                    // not doing what you intend, as the *content* of the tab is already wrapped above.
-                    // This specific usage of AdminAccessControl here might be redundant for showing the button
-                    // if the whole /admin route is already guarded.
-                    return tab.adminOnly && !isAdmin ? (
-                      <AdminAccessControl key={tab.id}>{tabButton}</AdminAccessControl>
-                    ) : tabButton;
-                  })}
-                </div>
-
-                {/* Admin Content Area with Suspense for lazy-loaded components */}
-                <Suspense fallback={<div className="text-purple-300">Loading admin content...</div>}>
-                  {activeAdminTab === 'orchestration' && <ModuleOrchestrator moduleManager={moduleManager} />}
-                  {activeAdminTab === 'consciousness' && <ConsciousnessMonitor moduleManager={moduleManager} />}
-                  {activeAdminTab === 'events' && <EventsPage />}
-                  {activeAdminTab === 'circle' && <SacredCircle />}
-                  {activeAdminTab === 'marketplace' && <ModuleMarketplace />}
-                  {activeAdminTab === 'shared-intentions' && <SharedIntentionsManager />}
-                  {activeAdminTab === 'developer' && <ModuleDeveloperKit />}
-                  {activeAdminTab === 'analytics' && <ModuleAnalytics />}
-                  {activeAdminTab === 'integrity' && <SystemIntegrityMonitor />}
-                  {activeAdminTab === 'metrics' && <SystemMetricsPanel />}
-                  {activeAdminTab === 'toggle' && <ModuleTogglePanel />}
-                  {activeAdminTab === 'guardian-protocols' && <GuardianProtocols />}
-                </Suspense>
-              </main>
-              <Footer />
-            </AdminAccessControl>
-          </ProtectedRoute>
-        } />
-
-        {/* Catch-all route to redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+  const renderModuleLockedFallback = (moduleType: string) => (
+    <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+      <div className="w-16 h-16 bg-red-600/20 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <Zap className="w-8 h-8 text-red-400" />
+      </div>
+      <h3 className="text-lg font-semibold text-white mb-2">Module Unavailable</h3>
+      <p className="text-gray-400 mb-4">
+        The {moduleType} module is currently disabled or not loaded.
+      </p>
+      <p className="text-sm text-purple-300">
+        Check the Module Control panel to enable the required modules.
+      </p>
     </div>
   );
-};
 
-// Main App component responsible for context providers and service initialization
-function App() {
-  // Initialize Supabase client
-  const supabase = SupabaseService.getInstance().client;
-
-  // Initialize all singleton services once here to be passed down
-  const moduleManager = new ModuleManager();
-  const geh = GlobalEventHorizon.getInstance(); // Not directly used in App, but initialized
-  const eventBus = EventBus.getInstance();
-  const metricsCollector = MetricsCollector.getInstance();
-  const integrityService = SystemIntegrityService.getInstance();
-  const optimizer = ConsciousnessOptimizer.getInstance(moduleManager);
-  const phrEngine = PHREngine.getInstance();
-  const codeWeavingEngine = CodeWeavingEngine.getInstance();
-  const architecturalHarmonizer = ArchitecturalHarmonizer.getInstance(moduleManager);
+  const renderAdminAccessDenied = (moduleType: string) => (
+    <div className="bg-slate-900/50 rounded-xl border border-red-500/20 p-8 text-center">
+      <div className="w-16 h-16 bg-red-600/20 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <ShieldAlert className="w-8 h-8 text-red-400" />
+      </div>
+      <h3 className="text-lg font-semibold text-white mb-2">Admin Access Required</h3>
+      <p className="text-gray-400 mb-4">
+        The {moduleType} module is restricted to system administrators only.
+      </p>
+      <p className="text-sm text-amber-300">
+        <Lock className="w-4 h-4 inline-block mr-1" />
+        Please contact an administrator for access.
+      </p>
+    </div>
+  );
 
   return (
-    // Wrap the entire application with necessary context providers
-    <ChakraProvider>
-      <XPProvider>
-        <SyncProvider>
+    <AuthProvider>
+      <ChakraProvider>
+        <XPProvider>
           <SacredCircleProvider>
-            <RSIProvider>
-              <AuthWrapper>
-                {/* Router needs to be within AuthWrapper and other contexts for hooks like useAuth, useNavigate to work */}
-                <Router>
-                  {/* AppContent receives all services as props */}
-                  <AppContent
-                    moduleManager={moduleManager}
-                    metricsCollector={metricsCollector}
-                    integrityService={integrityService}
-                    optimizer={optimizer}
-                    phrEngine={phrEngine}
-                    codeWeavingEngine={codeWeavingEngine}
-                    architecturalHarmonizer={architecturalHarmonizer}
-                    eventBus={eventBus}
-                    supabase={supabase}
-                  />
-                </Router>
-              </AuthWrapper>
-            </RSIProvider>
+            <AuthWrapper>
+              <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
+                <Header isUserMode={isUserMode} onToggleMode={() => setIsUserMode(!isUserMode)} />
+                
+                {isUserMode ? (
+                  <UserDashboard moduleManager={moduleManager} />
+                ) : (
+                  <main className="container mx-auto px-6 py-8">
+                    {/* Admin Tab Navigation */}
+                    <div className="flex justify-center mb-8">
+                      <div className="bg-slate-900/50 rounded-xl p-2 border border-purple-500/20 overflow-x-auto">
+                        <div className="flex">
+                          {tabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const tabButton = (
+                              <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
+                                  activeTab === tab.id
+                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/25'
+                                    : 'text-gray-400 hover:text-white hover:bg-slate-800/50'
+                                }`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                {tab.label}
+                                {tab.adminOnly && <Lock className="w-3 h-3 ml-1 text-amber-400" />}
+                              </button>
+                            );
+                            
+                            return tab.adminOnly ? (
+                              <AdminAccessControl key={tab.id}>
+                                {tabButton}
+                              </AdminAccessControl>
+                            ) : tabButton;
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Admin Tab Content */}
+                    <div className="space-y-8">
+                      {activeTab === 'orchestration' && (
+                        <div className="space-y-8">
+                          <ModuleOrchestrator moduleManager={moduleManager} />
+                          
+                          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                            <div className="xl:col-span-2">
+                              <EventStream className="h-full" />
+                            </div>
+                            <div>
+                              <ConsciousnessMonitor moduleManager={moduleManager} className="h-full" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'consciousness' && (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                          <ConsciousnessMonitor moduleManager={moduleManager} className="h-full" />
+                          <EventStream className="h-full" />
+                        </div>
+                      )}
+
+                      {activeTab === 'events' && (
+                        <div className="grid grid-cols-1 gap-8">
+                          <EventStream className="h-full" />
+                          
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <ModuleOrchestrator moduleManager={moduleManager} />
+                            <ConsciousnessMonitor moduleManager={moduleManager} />
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'circle' && (
+                        <div>
+                          {isLoadingComponents ? (
+                            <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+                              <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
+                              <p className="text-purple-300">Loading Sacred Circle...</p>
+                            </div>
+                          ) : circleComponent ? (
+                            React.createElement(circleComponent)
+                          ) : (
+                            renderModuleLockedFallback('Sacred Circle')
+                          )}
+                        </div>
+                      )}
+
+                      {activeTab === 'marketplace' && (
+                        <div>
+                          {isLoadingComponents ? (
+                            <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+                              <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
+                              <p className="text-purple-300">Loading Module Marketplace...</p>
+                            </div>
+                          ) : marketplaceComponent ? (
+                            React.createElement(marketplaceComponent)
+                          ) : (
+                            renderModuleLockedFallback('Module Marketplace')
+                          )}
+                        </div>
+                      )}
+
+                      {activeTab === 'developer' && (
+                        <AdminAccessControl fallbackComponent={renderAdminAccessDenied('Developer Tools')}>
+                          <div>
+                            {isLoadingComponents ? (
+                              <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+                                <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
+                                <p className="text-purple-300">Loading Developer Tools...</p>
+                              </div>
+                            ) : developerComponent ? (
+                              React.createElement(developerComponent)
+                            ) : (
+                              renderModuleLockedFallback('Developer Tools')
+                            )}
+                          </div>
+                        </AdminAccessControl>
+                      )}
+
+                      {activeTab === 'analytics' && (
+                        <AdminAccessControl fallbackComponent={renderAdminAccessDenied('Analytics')}>
+                          <div>
+                            {isLoadingComponents ? (
+                              <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+                                <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
+                                <p className="text-purple-300">Loading Analytics...</p>
+                              </div>
+                            ) : analyticsComponent ? (
+                              React.createElement(analyticsComponent)
+                            ) : (
+                              renderModuleLockedFallback('Analytics')
+                            )}
+                          </div>
+                        </AdminAccessControl>
+                      )}
+
+                      {activeTab === 'integrity' && (
+                        <AdminAccessControl fallbackComponent={renderAdminAccessDenied('System Integrity')}>
+                          <div className="grid grid-cols-1 gap-8">
+                            <SystemIntegrityMonitor />
+                          </div>
+                        </AdminAccessControl>
+                      )}
+
+                      {activeTab === 'metrics' && (
+                        <AdminAccessControl fallbackComponent={renderAdminAccessDenied('Performance Metrics')}>
+                          <div className="grid grid-cols-1 gap-8">
+                            <SystemMetricsPanel />
+                          </div>
+                        </AdminAccessControl>
+                      )}
+
+                      {activeTab === 'toggle' && (
+                        <AdminAccessControl fallbackComponent={renderAdminAccessDenied('Module Control')}>
+                          <ModuleTogglePanel />
+                        </AdminAccessControl>
+                      )}
+                    </div>
+
+                    {/* Sacred Geometry Background Elements */}
+                    <div className="fixed inset-0 pointer-events-none overflow-hidden">
+                      <div className="absolute top-1/4 left-1/4 w-64 h-64 border border-purple-500/10 rounded-full animate-spin-slow"></div>
+                      <div className="absolute bottom-1/4 right-1/4 w-48 h-48 border border-cyan-500/10 rotate-45 animate-pulse"></div>
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 border border-amber-500/5 rounded-full"></div>
+                    </div>
+                  </main>
+                )}
+              </div>
+            </AuthWrapper>
           </SacredCircleProvider>
-        </SyncProvider>
-      </XPProvider>
-    </ChakraProvider>
+        </XPProvider>
+      </ChakraProvider>
+    </AuthProvider>
   );
 }
 

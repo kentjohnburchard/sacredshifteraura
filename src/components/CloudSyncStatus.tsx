@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ModuleToggleService } from '../services/ModuleToggleService';
 import { GlobalEventHorizon } from '../services/GlobalEventHorizon';
-import { useSyncContext } from '../contexts/SyncContext';
 import { 
   Cloud, 
   CloudOff, 
@@ -11,26 +10,24 @@ import {
   RefreshCw,
   CheckCircle,
   AlertTriangle,
-  Loader2,
-  Database
+  Loader2
 } from 'lucide-react';
 
 export const CloudSyncStatus: React.FC = () => {
   const [toggleService] = useState(() => ModuleToggleService.getInstance());
   const [geh] = useState(() => GlobalEventHorizon.getInstance());
-  const { syncStatus, forceSync } = useSyncContext();
   
+  const [syncStatus, setSyncStatus] = useState(() => toggleService.getCloudSyncStatus());
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [syncEvents, setSyncEvents] = useState<string[]>([]);
-  
-  const { 
-    pendingCount,
-    failedCount,
-    isOnline,
-    isProcessing
-  } = syncStatus;
+  const [isForcingSync, setIsForcingSync] = useState(false);
 
   useEffect(() => {
+    // Update status periodically
+    const interval = setInterval(() => {
+      setSyncStatus(toggleService.getCloudSyncStatus());
+    }, 2000);
+
     // Listen for sync events
     const unsubscribeSync = geh.subscribe('module:toggle:cloudSync*', (event) => {
       if (event.type.includes('Complete')) {
@@ -48,32 +45,26 @@ export const CloudSyncStatus: React.FC = () => {
         `Realtime: ${event.type.split(':').pop()}`,
         ...prev.slice(0, 4)
       ]);
-    });
-
-    // Listen for sync service events
-    const unsubscribeSyncEvents = geh.subscribe('sync:*', (event) => {
-      if (event.type.includes('operation:completed')) {
-        setLastSyncTime(new Date());
-      }
       
-      setSyncEvents(prev => [
-        `${event.type.split(':').slice(1).join(':')}: ${event.payload?.table || ''}`,
-        ...prev.slice(0, 4)
-      ]);
+      // If status changed, update it immediately
+      if (event.type === 'supabase:realtime:statusChanged') {
+        setSyncStatus(toggleService.getCloudSyncStatus());
+      }
     });
 
     return () => {
+      clearInterval(interval);
       unsubscribeSync();
       unsubscribeRealtime();
-      unsubscribeSyncEvents();
     };
-  }, [geh, toggleService]);
+  }, [toggleService, geh]);
 
   const handleForceSync = async () => {
-    if (isProcessing || !isOnline) return;
+    if (isForcingSync) return;
     
     try {
-      await forceSync();
+      setIsForcingSync(true);
+      await toggleService.forceCloudSync();
       setLastSyncTime(new Date());
     } catch (error) {
       console.error('Force sync failed:', error);
@@ -81,30 +72,29 @@ export const CloudSyncStatus: React.FC = () => {
         `Sync error: ${(error as Error).message}`,
         ...prev.slice(0, 4)
       ]);
+    } finally {
+      setIsForcingSync(false);
     }
   };
 
   const getStatusIcon = () => {
-    if (!isOnline) return <CloudOff className="w-4 h-4 text-gray-400" />;
-    if (isProcessing) return <Loader2 className="w-4 h-4 animate-spin text-blue-400" />;
-    if (failedCount > 0) return <AlertTriangle className="w-4 h-4 text-red-400" />;
-    if (pendingCount > 0) return <Database className="w-4 h-4 text-yellow-400" />;
+    if (syncStatus.syncing || isForcingSync) return <Loader2 className="w-4 h-4 animate-spin text-blue-400" />;
+    if (!syncStatus.enabled) return <CloudOff className="w-4 h-4 text-gray-400" />;
+    if (!syncStatus.connected) return <WifiOff className="w-4 h-4 text-red-400" />;
     return <CheckCircle className="w-4 h-4 text-green-400" />;
   };
 
   const getStatusText = () => {
-    if (!isOnline) return 'Offline Mode';
-    if (isProcessing) return 'Syncing...';
-    if (failedCount > 0) return 'Sync Failed';
-    if (pendingCount > 0) return `${pendingCount} Pending`;
-    return 'In Sync';
+    if (syncStatus.syncing || isForcingSync) return 'Syncing...';
+    if (!syncStatus.enabled) return 'Cloud Sync Disabled';
+    if (!syncStatus.connected) return 'Connection Lost';
+    return 'Connected';
   };
 
   const getStatusColor = () => {
-    if (!isOnline) return 'text-gray-400 bg-gray-900/20';
-    if (isProcessing) return 'text-blue-400 bg-blue-900/20';
-    if (failedCount > 0) return 'text-red-400 bg-red-900/20';
-    if (pendingCount > 0) return 'text-yellow-400 bg-yellow-900/20';
+    if (syncStatus.syncing || isForcingSync) return 'text-blue-400 bg-blue-900/20';
+    if (!syncStatus.enabled) return 'text-gray-400 bg-gray-900/20';
+    if (!syncStatus.connected) return 'text-red-400 bg-red-900/20';
     return 'text-green-400 bg-green-900/20';
   };
 
@@ -117,14 +107,14 @@ export const CloudSyncStatus: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-2">
-          {isOnline && (
+          {syncStatus.enabled && (
             <button
               onClick={handleForceSync}
-              disabled={isProcessing}
+              disabled={syncStatus.syncing || isForcingSync}
               className="p-1 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
               title="Force sync"
             >
-              <RefreshCw className={`w-3 h-3 ${isProcessing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${(syncStatus.syncing || isForcingSync) ? 'animate-spin' : ''}`} />
             </button>
           )}
           
@@ -164,10 +154,10 @@ export const CloudSyncStatus: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {!isOnline && (
+      {!syncStatus.enabled && (
         <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
           <AlertTriangle className="w-3 h-3" />
-          Working offline - changes will sync when online
+          Sign in to enable cloud sync
         </div>
       )}
     </div>

@@ -37,10 +37,10 @@ export class ModuleToggleService {
       await this.loadFromLocalStorage();
 
       // 2. Try to enable cloud sync
-      const cloudEnabled = await this.enableCloudSync();
+      await this.enableCloudSync();
 
       // 3. If cloud sync enabled, merge with cloud data
-      if (cloudEnabled) {
+      if (this.cloudSyncEnabled) {
         await this.syncWithCloud();
       }
     } catch (error) {
@@ -65,7 +65,6 @@ export class ModuleToggleService {
       const { data: { user } } = await this.supabase.client.auth.getUser();
       if (!user) {
         console.log('[ModuleToggleService] Cloud sync disabled - user not authenticated');
-        this.cloudSyncEnabled = false;
         return false;
       }
 
@@ -88,14 +87,6 @@ export class ModuleToggleService {
     } catch (error) {
       console.error('[ModuleToggleService] Failed to enable cloud sync:', error);
       this.cloudSyncEnabled = false;
-      this.geh.publish({
-        type: 'module:toggle:cloudSyncError',
-        sourceId: 'MODULE_TOGGLE_SERVICE',
-        timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message, action: 'enableCloudSync' },
-        metadata: { fallback: 'local_only' },
-        essenceLabels: ['module:toggle', 'cloud:sync', 'error:enable']
-      });
       return false;
     }
   }
@@ -161,7 +152,7 @@ export class ModuleToggleService {
         type: 'module:toggle:cloudSyncError',
         sourceId: 'MODULE_TOGGLE_SERVICE',
         timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message, action: 'syncWithCloud' },
+        payload: { error: (error as Error).message },
         metadata: { fallback: 'local_only' },
         essenceLabels: ['module:toggle', 'cloud:sync', 'error:sync']
       });
@@ -184,14 +175,6 @@ export class ModuleToggleService {
       }
     } catch (error) {
       console.error('[ModuleToggleService] Failed to load from localStorage:', error);
-      this.geh.publish({
-        type: 'module:toggle:localStorageError',
-        sourceId: 'MODULE_TOGGLE_SERVICE',
-        timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message, action: 'loadFromLocalStorage' },
-        metadata: {},
-        essenceLabels: ['module:toggle', 'localstorage:error', 'data:corrupted']
-      });
     }
   }
 
@@ -237,14 +220,6 @@ export class ModuleToggleService {
     if (this.cloudSyncEnabled) {
       this.syncToCloud().catch(error => {
         console.warn('[ModuleToggleService] Cloud sync failed for toggle, continuing with local state:', error);
-        this.geh.publish({
-          type: 'module:toggle:cloudSyncError',
-          sourceId: 'MODULE_TOGGLE_SERVICE',
-          timestamp: new Date().toISOString(),
-          payload: { error: (error as Error).message, action: 'syncToCloud_toggle' },
-          metadata: { moduleId, enabled },
-          essenceLabels: ['module:toggle', 'cloud:sync', 'error:persistence']
-        });
       });
       
       // Track analytics
@@ -254,14 +229,6 @@ export class ModuleToggleService {
         source: 'user_action'
       }).catch(error => {
         console.warn('[ModuleToggleService] Analytics tracking failed:', error);
-        this.geh.publish({
-          type: 'module:toggle:analyticsError',
-          sourceId: 'MODULE_TOGGLE_SERVICE',
-          timestamp: new Date().toISOString(),
-          payload: { error: (error as Error).message, action: 'trackAnalytics_toggle' },
-          metadata: { moduleId, enabled },
-          essenceLabels: ['module:toggle', 'analytics:error']
-        });
       });
     }
 
@@ -305,14 +272,6 @@ export class ModuleToggleService {
     if (this.cloudSyncEnabled) {
       this.syncToCloud().catch(error => {
         console.warn('[ModuleToggleService] Cloud persistence failed, local state preserved:', error);
-        this.geh.publish({
-          type: 'module:toggle:cloudSyncError',
-          sourceId: 'MODULE_TOGGLE_SERVICE',
-          timestamp: new Date().toISOString(),
-          payload: { error: (error as Error).message, action: 'persistState' },
-          metadata: {},
-          essenceLabels: ['module:toggle', 'cloud:sync', 'error:persistence']
-        });
       });
     }
   }
@@ -326,14 +285,6 @@ export class ModuleToggleService {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stateObject));
     } catch (error) {
       console.error('[ModuleToggleService] Failed to persist to localStorage:', error);
-      this.geh.publish({
-        type: 'module:toggle:localStorageError',
-        sourceId: 'MODULE_TOGGLE_SERVICE',
-        timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message, action: 'persistLocalState' },
-        metadata: {},
-        essenceLabels: ['module:toggle', 'localstorage:error', 'data:corrupted']
-      });
     }
   }
 
@@ -348,14 +299,6 @@ export class ModuleToggleService {
       await this.supabase.syncModuleStates(stateObject);
     } catch (error) {
       console.error('[ModuleToggleService] Failed to sync to cloud:', error);
-      this.geh.publish({
-        type: 'module:toggle:cloudSyncError',
-        sourceId: 'MODULE_TOGGLE_SERVICE',
-        timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message, action: 'syncToCloud' },
-        metadata: {},
-        essenceLabels: ['module:toggle', 'cloud:sync', 'error:sync']
-      });
       throw error;
     }
   }

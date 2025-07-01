@@ -97,7 +97,7 @@ export class ConsciousnessOptimizer {
     }
     
     this.eventBus.publish(
-      'phre:config:updated',
+      'system:consciousness:optimizer:configUpdated',
       'CONSCIOUSNESS_OPTIMIZER',
       { config: this.config },
       ['system:optimization', 'config:updated']
@@ -281,7 +281,7 @@ export class ConsciousnessOptimizer {
   }
 
   /**
-   * Set up event listeners
+   * Set up event listeners for reactive optimization
    */
   private setupEventListeners(): void {
     // Listen for error events

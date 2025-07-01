@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CircleList } from './CircleList';
 import { SacredCircleWelcome } from './SacredCircleWelcome';
 import { UserPresencePanel } from './UserPresencePanel';
 import { SacredCirclePanel } from './SacredCirclePanel';
-import { DirectMessageList } from './DirectMessageList';
 import { useSacredCircle } from '../../../contexts/SacredCircleContext';
 import { HelpButton } from '../../../components/HelpButton';
 import { 
@@ -15,28 +14,16 @@ import {
   Settings
 } from 'lucide-react';
 
-type SacredCircleView = 'welcome' | 'circles' | 'events' | 'community' | 'direct-messages';
+type SacredCircleView = 'welcome' | 'circles' | 'events' | 'community';
 
 export const SacredCircle: React.FC = () => {
-  const { activeCircle, isLoading } = useSacredCircle();
+  const { activeCircle } = useSacredCircle();
   const [currentView, setCurrentView] = useState<SacredCircleView>('welcome');
-
-  // If a circle is selected, automatically switch to circles view
-  useEffect(() => {
-    if (activeCircle) {
-      if (activeCircle.is_direct_message) {
-        setCurrentView('direct-messages');
-      } else {
-        setCurrentView('circles');
-      }
-    }
-  }, [activeCircle]);
 
   const views = [
     { id: 'circles', label: 'Sacred Circles', icon: MessageCircle },
     { id: 'events', label: 'Sacred Events', icon: Calendar },
-    { id: 'community', label: 'Soul Community', icon: Users },
-    { id: 'direct-messages', label: 'Direct Messages', icon: Heart }
+    { id: 'community', label: 'Soul Community', icon: Users }
   ];
 
   const handleGetStarted = () => {
@@ -59,7 +46,7 @@ export const SacredCircle: React.FC = () => {
         <HelpButton moduleType="sacred-circle" />
       </div>
       
-      <div className="mt-4 grid grid-cols-4 gap-2">
+      <div className="mt-4 grid grid-cols-3 gap-2">
         {views.map((view) => {
           const Icon = view.icon;
           return (
@@ -77,15 +64,6 @@ export const SacredCircle: React.FC = () => {
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-
-  const renderLoadingState = () => (
-    <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-purple-300">Loading sacred circle data...</p>
       </div>
     </div>
   );
@@ -115,112 +93,88 @@ export const SacredCircle: React.FC = () => {
           >
             {renderNavigation()}
 
-            {isLoading ? (
-              renderLoadingState()
-            ) : (
-              <>
-                {currentView === 'circles' && (
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div className="xl:col-span-2 space-y-6">
-                      <CircleList />
-                      {activeCircle && <SacredCirclePanel />}
-                    </div>
-                    <div>
-                      <UserPresencePanel />
-                    </div>
-                  </div>
-                )}
+            {currentView === 'circles' && (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="xl:col-span-2 space-y-6">
+                  <CircleList />
+                  {activeCircle && <SacredCirclePanel />}
+                </div>
+                <div>
+                  <UserPresencePanel />
+                </div>
+              </div>
+            )}
 
-                {currentView === 'direct-messages' && (
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div className="xl:col-span-1 space-y-6">
-                      <DirectMessageList />
-                    </div>
-                    <div className="xl:col-span-2">
-                      {activeCircle && <SacredCirclePanel />}
-                      {!activeCircle && (
-                        <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
-                          <MessageCircle className="w-12 h-12 mx-auto mb-4 text-purple-400 opacity-50" />
-                          <h3 className="text-lg font-semibold text-white mb-2">Select a Conversation</h3>
-                          <p className="text-gray-400">Choose a direct message or start a new conversation</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+            {currentView === 'events' && (
+              <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
+                <Calendar className="w-16 h-16 mx-auto mb-6 text-purple-400" />
+                <h2 className="text-2xl font-bold text-white mb-4">Sacred Events</h2>
+                <p className="text-purple-300 mb-8">
+                  Events functionality will be integrated here from the Events module
+                </p>
+              </div>
+            )}
 
-                {currentView === 'events' && (
-                  <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-8 text-center">
-                    <Calendar className="w-16 h-16 mx-auto mb-6 text-purple-400" />
-                    <h2 className="text-2xl font-bold text-white mb-4">Sacred Events</h2>
-                    <p className="text-purple-300 mb-8">
-                      Events functionality will be integrated here from the Events module
+            {currentView === 'community' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-6">
+                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-pink-400" />
+                      Soul Community Hub
+                    </h2>
+                    <p className="text-purple-300 mb-6">
+                      Connect with awakened souls, share wisdom, and grow together in consciousness.
                     </p>
-                  </div>
-                )}
-
-                {currentView === 'community' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2">
-                      <div className="bg-slate-900/50 rounded-xl border border-purple-500/20 p-6">
-                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                          <Heart className="w-5 h-5 text-pink-400" />
-                          Soul Community Hub
-                        </h2>
-                        <p className="text-purple-300 mb-6">
-                          Connect with awakened souls, share wisdom, and grow together in consciousness.
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
+                        <h3 className="font-semibold text-white mb-2">Soul Connections</h3>
+                        <p className="text-gray-400 text-sm mb-3">
+                          Find and connect with souls that resonate with your frequency
                         </p>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
-                            <h3 className="font-semibold text-white mb-2">Soul Connections</h3>
-                            <p className="text-gray-400 text-sm mb-3">
-                              Find and connect with souls that resonate with your frequency
-                            </p>
-                            <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
-                              Explore Connections →
-                            </button>
-                          </div>
-                          
-                          <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
-                            <h3 className="font-semibold text-white mb-2">Wisdom Sharing</h3>
-                            <p className="text-gray-400 text-sm mb-3">
-                              Share insights, experiences, and sacred knowledge
-                            </p>
-                            <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
-                              Share Wisdom →
-                            </button>
-                          </div>
-                          
-                          <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
-                            <h3 className="font-semibold text-white mb-2">Sacred Mentorship</h3>
-                            <p className="text-gray-400 text-sm mb-3">
-                              Connect with guides or become a mentor to others
-                            </p>
-                            <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
-                              Find Mentors →
-                            </button>
-                          </div>
-                          
-                          <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
-                            <h3 className="font-semibold text-white mb-2">Soul Growth Tracking</h3>
-                            <p className="text-gray-400 text-sm mb-3">
-                              Track your spiritual journey and celebrate milestones
-                            </p>
-                            <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
-                              View Progress →
-                            </button>
-                          </div>
-                        </div>
+                        <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+                          Explore Connections →
+                        </button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
+                        <h3 className="font-semibold text-white mb-2">Wisdom Sharing</h3>
+                        <p className="text-gray-400 text-sm mb-3">
+                          Share insights, experiences, and sacred knowledge
+                        </p>
+                        <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+                          Share Wisdom →
+                        </button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
+                        <h3 className="font-semibold text-white mb-2">Sacred Mentorship</h3>
+                        <p className="text-gray-400 text-sm mb-3">
+                          Connect with guides or become a mentor to others
+                        </p>
+                        <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+                          Find Mentors →
+                        </button>
+                      </div>
+                      
+                      <div className="p-4 bg-slate-800/50 rounded-lg border border-gray-700">
+                        <h3 className="font-semibold text-white mb-2">Soul Growth Tracking</h3>
+                        <p className="text-gray-400 text-sm mb-3">
+                          Track your spiritual journey and celebrate milestones
+                        </p>
+                        <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+                          View Progress →
+                        </button>
                       </div>
                     </div>
-                    
-                    <div>
-                      <UserPresencePanel />
-                    </div>
                   </div>
-                )}
-              </>
+                </div>
+                
+                <div>
+                  <UserPresencePanel />
+                </div>
+              </div>
             )}
           </motion.div>
         )}

@@ -1,13 +1,11 @@
 import { IModule, ModuleManifest, GESemanticEvent } from '../../types';
 import { GlobalEventHorizon } from '../../services/GlobalEventHorizon';
-import { SupabaseService } from '../../services/SupabaseService';
-import React from 'react';
-import { SacredCircle } from './components/SacredCircle';
+import React, { useState, useEffect } from 'react';
 import { CircleList } from './components/CircleList';
+import { SacredCircle } from './components/SacredCircle';
 import { SacredCirclePanel } from './components/SacredCirclePanel';
 import { SacredCircleWelcome } from './components/SacredCircleWelcome';
 import { UserPresencePanel } from './components/UserPresencePanel';
-import { DirectMessageList } from './components/DirectMessageList';
 
 export interface CommunityThread {
   id: string;
@@ -38,40 +36,18 @@ export interface ChakraRoom {
   threads: CommunityThread[];
 }
 
-export interface CircleData {
-  id: string;
-  name: string;
-  description: string;
-  love_level?: number;
-  creator_id: string;
-  image_url?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface MessageData {
-  id: string;
-  circle_id: string;
-  user_id: string;
-  content: string;
-  message_type?: string;
-  created_at: string;
-}
-
 export class SacredCircleModule implements IModule {
   private manifest: ModuleManifest;
   private geh: GlobalEventHorizon;
-  private supabase: SupabaseService;
   private isInitialized = false;
   private isActive = false;
   private chakraRooms: Map<string, ChakraRoom> = new Map();
   private userXP: Map<string, number> = new Map();
-  private syncError: Error | null = null;
 
   constructor(manifest: ModuleManifest) {
     this.manifest = manifest;
     this.geh = GlobalEventHorizon.getInstance();
-    this.supabase = SupabaseService.getInstance();
+    this.initializeMockData();
   }
 
   getManifest(): ModuleManifest {
@@ -90,56 +66,8 @@ export class SacredCircleModule implements IModule {
       essenceLabels: ['module:initialization', 'community:preparation']
     });
 
-    try {
-      // Attempt to fetch data from Supabase
-      const circlesData = await this.fetchCirclesFromSupabase();
-      
-      if (circlesData && circlesData.length > 0) {
-        // Successfully fetched data from Supabase
-        this.processCircles(circlesData);
-        
-        this.geh.publish({
-          type: 'module:sacred-circle:database:connected',
-          sourceId: this.manifest.id,
-          timestamp: new Date().toISOString(),
-          payload: { circlesCount: circlesData.length },
-          metadata: { source: 'supabase' },
-          essenceLabels: ['database:connected', 'data:fetched', 'supabase:success']
-        });
-      } else {
-        // No data or error, use mock data as fallback
-        this.initializeMockData();
-        
-        this.geh.publish({
-          type: 'module:sacred-circle:database:fallback',
-          sourceId: this.manifest.id,
-          timestamp: new Date().toISOString(),
-          payload: { reason: this.syncError ? 'error' : 'no_data' },
-          metadata: { 
-            error: this.syncError?.message, 
-            source: 'mock_data' 
-          },
-          essenceLabels: ['database:fallback', 'mock:data']
-        });
-      }
-    } catch (error) {
-      // Something went wrong, use mock data as fallback
-      console.error('[SacredCircleModule] Initialize error:', error);
-      this.syncError = error as Error;
-      this.initializeMockData();
-      
-      this.geh.publish({
-        type: 'module:sacred-circle:error',
-        sourceId: this.manifest.id,
-        timestamp: new Date().toISOString(),
-        payload: { error: (error as Error).message },
-        metadata: { operation: 'initialize', fallback: 'mock_data' },
-        essenceLabels: ['module:error', 'initialization:failed']
-      });
-    }
-
-    // Listen for user actions to track XP
-    await this.setupEventListeners();
+    // Initialize community data structures
+    this.setupEventListeners();
     
     this.isInitialized = true;
 
@@ -151,80 +79,6 @@ export class SacredCircleModule implements IModule {
       metadata: { moduleName: this.manifest.name },
       essenceLabels: ['module:ready', 'community:available']
     });
-  }
-
-  private async fetchCirclesFromSupabase(): Promise<CircleData[] | null> {
-    try {
-      console.log('[SacredCircleModule] Fetching circles from Supabase...');
-      
-      const { data: authData } = await this.supabase.client.auth.getSession();
-      if (!authData.session) {
-        console.warn('[SacredCircleModule] No authenticated session found');
-        return null;
-      }
-      
-      // Fetch circles from database
-      const { data, error } = await this.supabase.client
-        .from('circles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('[SacredCircleModule] Error fetching circles:', error);
-        this.syncError = error;
-        return null;
-      }
-      
-      console.log(`[SacredCircleModule] Successfully fetched ${data.length} circles`);
-      return data;
-    } catch (error) {
-      console.error('[SacredCircleModule] fetchCirclesFromSupabase error:', error);
-      this.syncError = error as Error;
-      return null;
-    }
-  }
-
-  private processCircles(circlesData: CircleData[]): void {
-    console.log('[SacredCircleModule] Processing circles data:', circlesData);
-    
-    // Clear existing data
-    this.chakraRooms.clear();
-    
-    // Map the circles to ChakraRooms
-    for (const circle of circlesData) {
-      // Simple mapping of circle to chakra (in a real app this would be more sophisticated)
-      const chakraMapping: Record<string, string> = {
-        'Heart Chakra': 'heart',
-        'Crown Chakra': 'crown',
-        'Root Chakra': 'root',
-        'Sacral Chakra': 'sacral',
-        'Solar Plexus': 'solar',
-        'Throat Chakra': 'throat',
-        'Third Eye': 'ajna'
-      };
-      
-      // Determine chakra from name or default to 'heart'
-      let chakra = 'heart';
-      for (const [key, value] of Object.entries(chakraMapping)) {
-        if (circle.name.includes(key)) {
-          chakra = value;
-          break;
-        }
-      }
-      
-      const room: ChakraRoom = {
-        id: circle.id,
-        name: circle.name,
-        chakra: chakra,
-        description: circle.description || '',
-        activeMembers: Math.floor(Math.random() * 20) + 5, // Random for now
-        threads: [] // Empty threads for now
-      };
-      
-      this.chakraRooms.set(circle.id, room);
-    }
-    
-    console.log(`[SacredCircleModule] Created ${this.chakraRooms.size} chakra rooms from circles`);
   }
 
   async activate(): Promise<void> {
@@ -305,16 +159,13 @@ export class SacredCircleModule implements IModule {
         CircleList,
         SacredCirclePanel,
         SacredCircleWelcome,
-        UserPresencePanel,
-        DirectMessageList
+        UserPresencePanel
       },
       Component: () => SacredCircle
     };
   }
 
   private initializeMockData(): void {
-    console.log('[SacredCircleModule] Initializing with mock data (fallback)');
-    
     const chakras = [
       { id: 'root', name: 'Root Chakra', chakra: 'muladhara', description: 'Grounding, survival, and stability discussions' },
       { id: 'sacral', name: 'Sacral Chakra', chakra: 'svadhisthana', description: 'Creativity, sexuality, and emotional flow' },
@@ -353,11 +204,9 @@ export class SacredCircleModule implements IModule {
 
       this.chakraRooms.set(chakra.id, room);
     });
-    
-    console.log(`[SacredCircleModule] Created ${this.chakraRooms.size} chakra rooms with mock data`);
   }
 
-  private async setupEventListeners(): Promise<void> {
+  private setupEventListeners(): void {
     // Listen for user actions to award XP
     this.geh.subscribe('user:action', (event: GESemanticEvent) => {
       if (event.essenceLabels.includes('community:interaction')) {
@@ -365,50 +214,6 @@ export class SacredCircleModule implements IModule {
         this.addXP(userId, 5, 'community_interaction');
       }
     });
-    
-    // Listen for database changes
-    await this.setupDatabaseListeners();
-  }
-  
-  private async setupDatabaseListeners(): Promise<void> {
-    try {
-      const { data } = await this.supabase.client.auth.getSession();
-      if (!data || !data.session) return;
-      
-      // Listen for new circles
-      const circlesChannel = this.supabase.client
-        .channel('circle-changes')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'circles'
-        }, (payload) => {
-          console.log('[SacredCircleModule] Circle change detected:', payload);
-          
-          if (payload.eventType === 'INSERT') {
-            // Refetch circles for now - could optimize to just add the new one
-            this.fetchCirclesFromSupabase()
-              .then(circlesData => {
-                if (circlesData) this.processCircles(circlesData);
-              });
-          }
-          
-          this.geh.publish({
-            type: 'community:circle:changed',
-            sourceId: 'MODULE_REGISTRY',
-            timestamp: new Date().toISOString(),
-            payload: { 
-              changeType: payload.eventType, 
-              circleId: payload.new.id 
-            },
-            metadata: {},
-            essenceLabels: ['community:circle', 'data:changed', 'supabase:sync']
-          });
-        })
-        .subscribe();
-    } catch (error) {
-      console.error('[SacredCircleModule] Error setting up database listeners:', error);
-    }
   }
 
   private createThread(roomId: string, threadData: Omit<CommunityThread, 'id' | 'timestamp' | 'replies' | 'upvotes'>): string {

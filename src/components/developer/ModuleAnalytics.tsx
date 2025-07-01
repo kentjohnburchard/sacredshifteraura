@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ModuleMarketplaceService } from '../../services/ModuleMarketplaceService';
 import { 
   BarChart, 
   BarChart3, 
@@ -20,74 +19,54 @@ import {
 } from 'lucide-react';
 
 export const ModuleAnalytics: React.FC = () => {
-  const [marketplaceService] = useState(() => ModuleMarketplaceService.getInstance());
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const [isLoading, setIsLoading] = useState(false);
-  const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   
   useEffect(() => {
-    loadAnalyticsData();
+    // Simulate data loading
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, [timeRange]);
 
-  const loadAnalyticsData = async () => {
-    setIsLoading(true);
-    try {
-      const now = new Date();
-      let startDate = new Date();
-
-      switch (timeRange) {
-        case 'day':
-          startDate.setDate(now.getDate() - 1);
-          break;
-        case 'week':
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'year':
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-
-      // Fetch analytics data from the service
-      const data = await marketplaceService.getModuleAnalytics(undefined, { start: startDate, end: now });
-      setAnalyticsData(data);
-    } catch (error) {
-      console.error('Failed to load analytics data:', error);
-      setAnalyticsData([]); // Clear data on error
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleRefresh = () => {
-    loadAnalyticsData();
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
   };
 
-  // Mock data for charts (will be replaced by actual analyticsData processing)
+  // Mock data for charts
   const generateMockData = () => {
     const data = [];
     const now = new Date();
     
     let points = 7;
+    let step = 1;
     let dateStep = 1;
     
     switch (timeRange) {
       case 'day':
         points = 24;
+        step = 1;
         dateStep = 1/24;
         break;
       case 'week':
         points = 7;
+        step = 1;
         dateStep = 1;
         break;
       case 'month':
         points = 30;
+        step = 1;
         dateStep = 1;
         break;
       case 'year':
         points = 12;
+        step = 1;
         dateStep = 30;
         break;
     }
@@ -108,14 +87,14 @@ export const ModuleAnalytics: React.FC = () => {
     return data;
   };
   
-  const mockData = generateMockData(); // This will be replaced by processing analyticsData
+  const mockData = generateMockData();
   
   // Calculate trends
   const calculateTrend = (metric: string) => {
     if (mockData.length < 2) return { value: 0, isPositive: true };
     
-    const current = mockData[mockData.length - 1][metric as keyof typeof mockData] as number;
-    const previous = mockData[mockData.length - 2][metric as keyof typeof mockData] as number;
+    const current = mockData[mockData.length - 1][metric as keyof typeof mockData[0]] as number;
+    const previous = mockData[mockData.length - 2][metric as keyof typeof mockData[0]] as number;
     
     const change = ((current - previous) / previous) * 100;
     return {

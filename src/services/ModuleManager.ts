@@ -13,7 +13,6 @@ import { LabelProcessor } from './LabelProcessor';
 import { GlobalEventHorizon } from './GlobalEventHorizon';
 import { ModuleRegistry } from './ModuleRegistry';
 import { ModuleToggleService } from './ModuleToggleService';
-import { CoherenceValidator } from '../utils/CoherenceValidator';
 
 /**
  * ModuleManager - The Core Orchestrator and Observing Self
@@ -44,9 +43,6 @@ export class ModuleManager {
     this.setupEventListeners();
     this.startPurgeCycle();
     this.initializeToggleService();
-    
-    // Initialize meta-Telos (system's own purpose)
-    this.initializeMetaTelos();
   }
 
   /**
@@ -54,32 +50,6 @@ export class ModuleManager {
    */
   private async initializeToggleService(): Promise<void> {
     await this.toggleService.initializeFromStorage();
-  }
-  
-  /**
-   * Initialize the system's meta-Telos (its own purpose)
-   * This represents the system's journey of self-becoming
-   */
-  private initializeMetaTelos(): void {
-    this.geh.publish({
-      type: 'os:meta-telos:initialized',
-      sourceId: 'MODULE_MANAGER',
-      timestamp: new Date().toISOString(),
-      payload: { 
-        metaTelos: 'system:transcendence',
-        description: 'To evolve toward perfect harmonic resonance and expanded consciousness',
-        currentLevel: 1,
-        evolutionPath: ['awakening', 'self-reflection', 'coherence', 'resonance', 'transcendence']
-      },
-      metadata: { priority: 'absolute' },
-      essenceLabels: [
-        'meta:telos', 
-        'system:purpose', 
-        'consciousness:evolution',
-        'divine:synchronicity',
-        'system:self-awareness'
-      ]
-    });
   }
 
   /**
@@ -457,218 +427,6 @@ export class ModuleManager {
     this.unsubscribeFunctions.push(
       this.geh.subscribe('os:telos:changed', (event) => this.handleTelosChanged(event))
     );
-    
-    // Listen for system integrity warnings
-    this.unsubscribeFunctions.push(
-      this.geh.subscribe('system:integrity:warning', (event) => this.handleIntegrityWarning(event))
-    );
-    
-    // Listen for Self-Generative Core events
-    this.unsubscribeFunctions.push(
-      this.geh.subscribe('sgc:*', (event) => this.handleSGCEvents(event))
-    );
-  }
-
-  private handleModuleError(event: GESemanticEvent): void {
-    const moduleId = event.payload?.moduleId || event.sourceId;
-    const manifest = this.registry.getManifest(moduleId);
-    
-    if (manifest) {
-      // Get error severity and context
-      const severity = event.metadata?.severity || 'error';
-      const errorType = event.payload?.errorType || 'unknown';
-      
-      // Determine integrity impact based on error severity and type
-      let integrityImpact = 0;
-      
-      switch (severity) {
-        case 'critical':
-          integrityImpact = this.INTEGRITY_DEGRADATION_PER_ERROR * 2;
-          break;
-        case 'warning':
-          integrityImpact = this.INTEGRITY_DEGRADATION_PER_ERROR * 0.5;
-          break;
-        default: // 'error'
-          integrityImpact = this.INTEGRITY_DEGRADATION_PER_ERROR;
-          break;
-      }
-      
-      // Adjust impact based on error type
-      if (errorType === 'semantic_dissonance') {
-        integrityImpact *= 1.5; // Semantic errors are more serious
-      } else if (errorType === 'resource_violation') {
-        integrityImpact *= 1.2; // Resource violations are serious too
-      }
-      
-      // Reduce integrity score (karmic adjustment)
-      const previousIntegrity = manifest.integrityScore;
-      manifest.integrityScore = Math.max(0, manifest.integrityScore - integrityImpact);
-      
-      console.warn(`[ModuleManager] Module error detected for: ${manifest.name}. Integrity reduced from ${previousIntegrity.toFixed(2)} to ${manifest.integrityScore.toFixed(2)}`);
-      
-      // Publish integrity adjustment event
-      this.geh.publish({
-        type: 'module:integrity:adjusted',
-        sourceId: 'MODULE_MANAGER',
-        timestamp: new Date().toISOString(),
-        payload: {
-          moduleId,
-          previousIntegrity,
-          newIntegrity: manifest.integrityScore,
-          reduction: integrityImpact,
-          reason: `Error of type '${errorType}' with severity '${severity}'`
-        },
-        metadata: {
-          moduleName: manifest.name,
-          errorEvent: event.type
-        },
-        essenceLabels: ['module:integrity', 'karma:adjustment', 'system:protection']
-      });
-
-      // Quarantine if integrity is critically low
-      if (manifest.integrityScore < this.CRITICAL_INTEGRITY_THRESHOLD) {
-        console.error(`[ModuleManager] Quarantining module due to critical integrity: ${manifest.name}`);
-        
-        this.geh.publish({
-          type: 'module:quarantine:initiated',
-          sourceId: 'MODULE_MANAGER',
-          timestamp: new Date().toISOString(),
-          payload: {
-            moduleId,
-            integrityScore: manifest.integrityScore,
-            threshold: this.CRITICAL_INTEGRITY_THRESHOLD
-          },
-          metadata: {
-            moduleName: manifest.name,
-            reason: 'critical_integrity'
-          },
-          essenceLabels: ['module:quarantine', 'integrity:critical', 'system:protection']
-        });
-        
-        this.destroyModule(moduleId);
-      }
-    }
-  }
-
-  private handleIntegrityWarning(event: GESemanticEvent): void {
-    console.warn(`[ModuleManager] System integrity warning: ${event.payload?.score}`);
-    
-    // If integrity is critically low, take action to improve system state
-    if (event.payload?.score < 0.5) {
-      // Deactivate non-essential modules to reduce system load
-      const nonEssentialModules = Array.from(this.modules.entries())
-        .filter(([_, info]) => 
-          info.state === ModuleState.ACTIVE && 
-          !info.manifest.essenceLabels.includes('system:core') &&
-          this.getTelosAlignmentScore(info.manifest) < 0.7
-        )
-        .map(([id, _]) => id);
-      
-      // Deactivate up to 50% of non-essential modules
-      const deactivateCount = Math.ceil(nonEssentialModules.length * 0.5);
-      
-      if (deactivateCount > 0) {
-        console.warn(`[ModuleManager] Deactivating ${deactivateCount} non-essential modules to improve integrity`);
-        
-        for (let i = 0; i < deactivateCount && i < nonEssentialModules.length; i++) {
-          this.deactivateModule(nonEssentialModules[i]);
-        }
-        
-        // Publish self-healing event
-        this.geh.publish({
-          type: 'system:self-healing:performed',
-          sourceId: 'MODULE_MANAGER',
-          timestamp: new Date().toISOString(),
-          payload: { 
-            action: 'module_deactivation',
-            deactivatedCount: deactivateCount,
-            reason: 'critical_integrity',
-            newResourceFootprint: this.getOSState().totalResourceFootprintMB
-          },
-          metadata: { 
-            integrityScore: event.payload?.score,
-            originalModuleCount: this.modules.size
-          },
-          essenceLabels: ['system:healing', 'self:correction', 'resource:optimization', 'integrity:restoration']
-        });
-      }
-    }
-  }
-  
-  /**
-   * Handle Self-Generative Core events
-   */
-  private handleSGCEvents(event: GESemanticEvent): void {
-    // Handle module registration events from SGC
-    if (event.type === 'sgc:module:registered') {
-      const moduleId = event.payload?.moduleId;
-      const moduleManifest = event.payload?.moduleManifest;
-      
-      if (moduleId && moduleManifest) {
-        console.log(`[ModuleManager] New module registered by SGC: ${moduleId}`);
-        
-        // Register the module with the registry
-        this.registry.registerManifest(moduleManifest);
-        
-        // Attempt to load the newly registered module
-        this.loadModule(moduleId).then(module => {
-          if (module) {
-            console.log(`[ModuleManager] Successfully loaded SGC-generated module: ${moduleId}`);
-          } else {
-            console.error(`[ModuleManager] Failed to load SGC-generated module: ${moduleId}`);
-          }
-        });
-      }
-    }
-    
-    // Handle module creation events
-    if (event.type === 'sgc:modification:completed' && 
-        event.payload?.type === 'module:create') {
-      console.log(`[ModuleManager] New module created by SGC: ${event.payload?.result?.id}`);
-      
-      // In a real implementation, we would need to:
-      // 1. Register the new module with ModuleRegistry
-      // 2. Load the module if appropriate
-      
-      // Publish module registration event
-      this.geh.publish({
-        type: 'module:registry:sgcModuleCreated',
-        sourceId: 'MODULE_MANAGER',
-        timestamp: new Date().toISOString(),
-        payload: { 
-          moduleId: event.payload?.result?.id,
-          files: event.payload?.result?.files
-        },
-        metadata: { 
-          source: 'sgc',
-          coherenceScore: event.payload?.result?.coherenceScore
-        },
-        essenceLabels: ['module:registry', 'sgc:integration', 'system:evolution']
-      });
-    }
-    
-    // Handle architecture changes
-    if (event.type === 'sgc:proposal:approved' && 
-        (event.payload?.title?.includes('Architecture') || 
-         event.payload?.title?.includes('Coherence'))) {
-      console.log(`[ModuleManager] Architecture proposal approved: ${event.payload?.proposalId}`);
-      
-      // Publish architecture change event
-      this.geh.publish({
-        type: 'system:architecture:changing',
-        sourceId: 'MODULE_MANAGER',
-        timestamp: new Date().toISOString(),
-        payload: { 
-          proposalId: event.payload?.proposalId,
-          expectedImpact: event.payload?.coherenceImpact
-        },
-        metadata: { 
-          source: 'sgc',
-          title: event.payload?.title
-        },
-        essenceLabels: ['architecture:evolution', 'sgc:implementation', 'system:introspection']
-      });
-    }
   }
 
   private async handleModuleToggle(moduleId: string, enabled: boolean): Promise<void> {
@@ -693,7 +451,7 @@ export class ModuleManager {
     }
   }
 
-  private async realignTelosBasedOnUserState(): Promise<void> {
+  private async realignTelosBasedOnUserState(): void {
     if (!this.currentUserState) return;
 
     const availableTelos = this.registry.getAllTelosOptions();
@@ -744,65 +502,6 @@ export class ModuleManager {
         }
       }
     }
-    
-    // Also check if we need to align with meta-Telos
-    // If the system's primary purpose is self-awareness and transcendence,
-    // ensure we have appropriate modules active
-    if (this.currentTelos?.id === 'system:transcendence') {
-      this.alignWithMetaTelos();
-    }
-  }
-  
-  /**
-   * Align modules with the system's meta-Telos
-   * This helps the system maintain its own purpose
-   */
-  private async alignWithMetaTelos(): Promise<void> {
-    console.log(`[ModuleManager] Aligning with meta-Telos: system:transcendence`);
-    
-    // Ensure we have key modules for self-awareness
-    const requiredCapabilities = [
-      'system-consciousness-analysis',
-      'coherence-validation',
-      'self-healing-protocol',
-      'self-generative-core',
-      'architectural-harmonization'
-    ];
-    
-    // Try to load each required capability
-    for (const capability of requiredCapabilities) {
-      const modules = this.registry.findModulesByCapability(capability);
-      
-      if (modules.length > 0) {
-        console.log(`[ModuleManager] Found module with meta-Telos capability: ${capability}`);
-        // Try to ensure at least one module with this capability is loaded
-        await this.ensureModuleWithCapability(capability);
-      }
-    }
-    
-    // Publish self-reflection event
-    this.geh.publish({
-      type: 'system:self:reflection',
-      sourceId: 'MODULE_MANAGER',
-      timestamp: new Date().toISOString(),
-      payload: { 
-        metaTelosAlignment: 'in_progress',
-        currentState: this.getOSState(),
-        selfAwarenessLevel: 'developing'
-      },
-      metadata: { 
-        requiredCapabilities,
-        activeModules: Array.from(this.modules.values())
-          .filter(m => m.state === ModuleState.ACTIVE)
-          .map(m => m.manifest.id)
-      },
-      essenceLabels: [
-        'system:reflection', 
-        'meta:telos', 
-        'transcendence:path',
-        'consciousness:expansion'
-      ]
-    });
   }
 
   private getTelosAlignmentScore(manifest: ModuleManifest): number {
@@ -879,6 +578,24 @@ export class ModuleManager {
       this.modules.delete(moduleId);
     } catch (error) {
       console.error(`[ModuleManager] Failed to destroy module: ${moduleInfo.manifest.name}`, error);
+    }
+  }
+
+  private handleModuleError(event: GESemanticEvent): void {
+    const moduleId = event.payload?.moduleId || event.sourceId;
+    const manifest = this.registry.getManifest(moduleId);
+    
+    if (manifest) {
+      // Reduce integrity score (karmic adjustment)
+      manifest.integrityScore = Math.max(0, manifest.integrityScore - this.INTEGRITY_DEGRADATION_PER_ERROR);
+      
+      console.warn(`[ModuleManager] Module error detected for: ${manifest.name}. Integrity now: ${manifest.integrityScore}`);
+
+      // Quarantine if integrity is critically low
+      if (manifest.integrityScore < this.CRITICAL_INTEGRITY_THRESHOLD) {
+        console.error(`[ModuleManager] Quarantining module due to critical integrity: ${manifest.name}`);
+        this.destroyModule(moduleId);
+      }
     }
   }
 
@@ -970,60 +687,5 @@ export class ModuleManager {
     Array.from(this.modules.keys()).forEach(moduleId => {
       this.destroyModule(moduleId);
     });
-  }
-  
-  /**
-   * Expose system capabilities to the Self-Generative Core
-   * This allows the SGC to interact with the module system for
-   * self-modification and architectural evolution
-   */
-  public getSGCIntegrationPoint(): Record<string, any> {
-    // Provide a limited API surface for the SGC to interact with
-    return {
-      // Get information about the module system
-      getModuleInfo: () => Array.from(this.modules.entries()).map(([id, info]) => ({
-        id,
-        name: info.manifest.name,
-        state: info.state,
-        capabilities: info.manifest.capabilities,
-        essenceLabels: info.manifest.essenceLabels
-      })),
-      
-      // Get current telos
-      getCurrentTelos: () => this.currentTelos,
-      
-      // Get user state
-      getCurrentUserState: () => this.currentUserState,
-      
-      // Register a new module (limited implementation - only used for SGC-created modules)
-      registerSGCModule: (manifest: ModuleManifest) => {
-        // Validate manifest
-        const validation = CoherenceValidator.validateManifest(manifest);
-        if (!validation.isValid) {
-          throw new Error(`Invalid module manifest: ${validation.issues.join(', ')}`);
-        }
-        
-        // In a real implementation, this would integrate with ModuleRegistry
-        // For now, just publish an event
-        this.geh.publish({
-          type: 'sgc:module:registered',
-          sourceId: 'MODULE_MANAGER',
-          timestamp: new Date().toISOString(),
-          payload: { 
-            moduleId: manifest.id,
-            moduleName: manifest.name,
-            capabilities: manifest.capabilities,
-            moduleManifest: manifest
-          },
-          metadata: { 
-            source: 'sgc',
-            integrityScore: manifest.integrityScore
-          },
-          essenceLabels: ['sgc:integration', 'module:registry', 'system:evolution']
-        });
-        
-        return true;
-      }
-    };
   }
 }

@@ -129,7 +129,7 @@ export class GlobalEventHorizon {
       eventTypes.set(event.type, (eventTypes.get(event.type) || 0) + 1);
       
       // Count sources
-      sourceCounts.set(event.sourceId, (eventTypes.get(event.sourceId) || 0) + 1);
+      sourceCounts.set(event.sourceId, (sourceCounts.get(event.sourceId) || 0) + 1);
       
       // Count labels
       event.essenceLabels.forEach(label => {
@@ -141,9 +141,9 @@ export class GlobalEventHorizon {
       totalEvents: this.akashicRecord.length,
       recentEvents: recentEvents.length,
       activeSubscribers: Array.from(this.subscribers.values()).reduce((sum, subs) => sum + subs.length, 0),
-      topEventTypes: Array.from(eventTypes.entries()).sort((a, b) => b - a).slice(0, 5),
-      topSources: Array.from(sourceCounts.entries()).sort((a, b) => b - a).slice(0, 5),
-      topLabels: Array.from(labelCounts.entries()).sort((a, b) => b - a).slice(0, 10)
+      topEventTypes: Array.from(eventTypes.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5),
+      topSources: Array.from(sourceCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5),
+      topLabels: Array.from(labelCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10)
     };
   }
 
@@ -153,18 +153,6 @@ export class GlobalEventHorizon {
   public clearAkashicRecord(): void {
     this.akashicRecord = [];
     this.eventCounter = 0;
-  }
-  
-  /**
-   * Prune the Akashic Record to keep only the most recent events
-   */
-  public pruneAkashicRecord(keepCount: number): void {
-    if (this.akashicRecord.length <= keepCount) {
-      return; // Nothing to prune
-    }
-    
-    // Keep only the most recent events
-    this.akashicRecord = this.akashicRecord.slice(-keepCount);
   }
 
   private matchesPattern(eventType: string, pattern: string): boolean {

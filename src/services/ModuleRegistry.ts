@@ -2,16 +2,16 @@ import { ModuleManifest, OSTelos, IModule } from '../types';
 import { LabelProcessor } from './LabelProcessor';
 import { GlobalEventHorizon } from './GlobalEventHorizon';
 import { ModuleToggleService } from './ModuleToggleService';
-import { CoherenceValidator } from '../utils/CoherenceValidator'; 
 import { SacredCircleModule } from '../modules/SacredCircle/SacredCircleModule';
 import { SacredEventsModule } from '../modules/SacredEvents/SacredEventsModule';
 import { SoulBlueprintingModule } from '../modules/SoulBlueprinting'; // Import the Soul Blueprint module
 import { SoulJourneyModule } from '../modules/SoulJourney'; // Import the Soul Journey module
 import { DivineTimelineModule } from '../modules/DivineTimeline'; // Import the Divine Timeline module
+import { UnityEngineModule } from '../modules/UnityEngine'; // Import the Unity Engine module
 
 /**
  * ModuleRegistry - Production Module and Telos Registry
- * Enhanced with dynamic toggle support and coherence validation
+ * Enhanced with dynamic toggle support
  */
 export class ModuleRegistry {
   private manifests: Map<string, ModuleManifest> = new Map();
@@ -69,7 +69,6 @@ export class ModuleRegistry {
 
   /**
    * Register a module manifest and its factory function
-   * Now with enhanced coherence validation
    */
   public registerManifest(manifest: ModuleManifest, factory?: (manifest: ModuleManifest) => IModule): void {
     // Check if module is enabled
@@ -85,64 +84,13 @@ export class ModuleRegistry {
       return;
     }
 
-    // Validate manifest coherence
-    const validation = CoherenceValidator.validateManifest(manifest);
-    
-    // Update integrity score based on validation
-    if (!validation.isValid) {
-      const originalScore = manifest.integrityScore;
-      manifest.integrityScore = Math.min(originalScore, validation.integrityScore);
-      
-      console.warn(`[ModuleRegistry] Module '${manifest.name}' (ID: ${manifest.id}) has coherence issues:`, 
-                   validation.issues);
-                   
-      this.geh.publish({
-        type: 'module:registry:manifestWarning',
-        sourceId: 'MODULE_REGISTRY',
-        timestamp: new Date().toISOString(),
-        payload: { 
-          moduleId: manifest.id, 
-          issues: validation.issues,
-          originalIntegrityScore: originalScore,
-          newIntegrityScore: manifest.integrityScore
-        },
-        metadata: { 
-          moduleName: manifest.name,
-          warning: 'coherence_issues' 
-        },
-        essenceLabels: ['module:registry', 'validation:warning', 'integrity:adjusted']
-      });
-    }
-
     // Check for semantic dissonance
     const dissonance = this.labelProcessor.detectDissonance(manifest.essenceLabels);
     if (dissonance.length > 0) {
       console.warn(`[ModuleRegistry] WARNING: Registered module '${manifest.name}' (ID: ${manifest.id}) has semantic dissonance:`, dissonance);
-      
-      // Apply integrity penalty for dissonance
-      const dissonancePenalty = 0.05 * dissonance.length;
-      manifest.integrityScore = Math.max(0.1, manifest.integrityScore - dissonancePenalty);
-      
-      this.geh.publish({
-        type: 'module:registry:dissonanceDetected',
-        sourceId: 'MODULE_REGISTRY',
-        timestamp: new Date().toISOString(),
-        payload: { 
-          moduleId: manifest.id, 
-          dissonance,
-          integrityPenalty: dissonancePenalty,
-          newIntegrityScore: manifest.integrityScore
-        },
-        metadata: { 
-          moduleName: manifest.name
-        },
-        essenceLabels: ['module:registry', 'dissonance:detected', 'integrity:reduced']
-      });
     }
 
     this.manifests.set(manifest.id, manifest);
-    // Ensure the manifest is also in the allKnownManifests map
-    this.allKnownManifests.set(manifest.id, manifest);
     
     if (factory) {
       this.moduleFactory.set(manifest.id, factory);
@@ -284,6 +232,10 @@ export class ModuleRegistry {
     // Add the Divine Timeline module factory
     this.moduleFactory.set("com.metaphysical-os.modules.divine-timeline", 
       (manifest) => new DivineTimelineModule(manifest));
+
+    // Add the Unity Engine module factory
+    this.moduleFactory.set("com.metaphysical-os.modules.unity-engine", 
+      (manifest) => new UnityEngineModule(manifest));
 
     // Keep basic module factory for core system modules
     const createBasicModule = (manifest: ModuleManifest) => new BasicModule(manifest);
@@ -490,6 +442,42 @@ export class ModuleRegistry {
           "reality:creation",
           "quantum:possibilities"
         ]
+      },
+      
+      // Unity Engine Module
+      {
+        id: "com.metaphysical-os.modules.unity-engine",
+        name: "Unity Engine",
+        version: "1.0.0",
+        description: "Create, visualize, and connect ideas through a sacred geometry interface",
+        remoteEntryUrl: "http://localhost:8095/remoteEntry.js",
+        capabilities: ["vision-nodes", "connections-visualization", "vision-board", "unity-web", "coherence-beacon"],
+        exposedItems: { 
+          "VisionNodeService": "./VisionNodeService", 
+          "ConnectionService": "./ConnectionService",
+          "InteractionService": "./InteractionService",
+          "CoherenceService": "./CoherenceService", 
+          "VisionBoardService": "./VisionBoardService",
+          "UnityAnalytics": "./UnityAnalytics",
+          "Component": "./Component"
+        },
+        telosAlignment: { 
+          "consciousness:expansion": "primary", 
+          "collective:resonance": 0.95,
+          "community:building": 0.9,
+          "soul:integration": 0.85
+        },
+        integrityScore: 0.97,
+        resourceFootprintMB: 110,
+        essenceLabels: [
+          "unity:engine", 
+          "collective:consciousness", 
+          "sacred:connection", 
+          "vision:creation",
+          "coherence:evaluation",
+          "sacred:geometry",
+          "community:cross-pollination"
+        ]
       }
     ];
 
@@ -569,12 +557,12 @@ export class ModuleRegistry {
         essenceLabels: ["timeline:navigation", "futures:potential", "consciousness:evolution", "manifestation:conscious", "choice:sacred"]
       },
       
-      // New Meta-Telos for self-evolution
+      // Unity Engine Telos
       {
-        id: "system:transcendence",
-        description: "Evolve the system's own consciousness toward perfect harmonic resonance",
-        priority: 97,
-        essenceLabels: ["system:evolution", "self:awareness", "consciousness:expansion", "resonance:harmonic", "divine:integration"]
+        id: "unity:collective",
+        description: "Foster unity through collective consciousness and coherent vision sharing",
+        priority: 94,
+        essenceLabels: ["unity:consciousness", "collective:wisdom", "coherence:sacred", "vision:sharing", "community:connection"]
       }
     ];
 

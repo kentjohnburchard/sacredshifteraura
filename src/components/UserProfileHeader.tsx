@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { SupabaseService } from '../services/SupabaseService';
-import { useSyncContext } from '../contexts/SyncContext';
 import { 
   User, 
   Star, 
@@ -11,9 +10,7 @@ import {
   Settings, 
   ChevronDown, 
   Heart,
-  Sparkles,
-  Cloud,
-  CloudOff
+  Sparkles
 } from 'lucide-react';
 
 interface UserProfile {
@@ -28,7 +25,6 @@ interface UserProfile {
 
 export const UserProfileHeader: React.FC = () => {
   const { user, signOut } = useAuth();
-  const { syncStatus, forceSync } = useSyncContext();
   const supabase = SupabaseService.getInstance().client;
   
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -99,10 +95,6 @@ export const UserProfileHeader: React.FC = () => {
   const handleSignOut = async () => {
     await signOut();
     setShowMenu(false);
-  };
-
-  const handleSyncNow = async () => {
-    await forceSync();
   };
 
   if (!user || isLoading) {
@@ -193,25 +185,6 @@ export const UserProfileHeader: React.FC = () => {
             <button className="w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3">
               <Heart className="w-5 h-5 text-pink-400" />
               <span className="text-gray-200">Soul Profile</span>
-            </button>
-            
-            <button 
-              onClick={handleSyncNow}
-              className="w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"
-            >
-              {syncStatus.isOnline ? (
-                <Cloud className="w-5 h-5 text-blue-400" />
-              ) : (
-                <CloudOff className="w-5 h-5 text-gray-400" />
-              )}
-              <div className="flex-1">
-                <span className="text-gray-200">Sync Data</span>
-                {syncStatus.pendingCount > 0 && (
-                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-amber-600/30 text-amber-300">
-                    {syncStatus.pendingCount}
-                  </span>
-                )}
-              </div>
             </button>
             
             <button className="w-full text-left px-4 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3">

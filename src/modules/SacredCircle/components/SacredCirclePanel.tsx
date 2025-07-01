@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSacredCircle } from '../../../contexts/SacredCircleContext';
 import { useChakra } from '../../../contexts/ChakraContext';
-import { useAuth } from '../../../contexts/AuthContext';
 import { 
   MessageCircle, 
   Send, 
@@ -14,52 +13,43 @@ import {
   Heart,
   Settings,
   Smile,
-  Paperclip,
-  Clock,
-  Info,
-  ArrowRight,
-  Loader,
-  AlertTriangle
+  Paperclip
 } from 'lucide-react';
 
 export const SacredCirclePanel: React.FC = () => {
-  const { activeCircle, messages, profiles, sendMessage, sendFrequency, startGroupMeditation, getProfile } = useSacredCircle();
-  const { getChakraColor } = useChakra();
-  const { user } = useAuth();
+  const { 
+    activeCircle, 
+    messages, 
+    events,
+    sendMessage, 
+    sendFrequency,
+    startGroupMeditation,
+    createEvent 
+  } = useSacredCircle();
   
+  const { getChakraColor } = useChakra();
   const [messageInput, setMessageInput] = useState('');
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [eventTitle, setEventTitle] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const messagesRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-    }
-  };
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || isSubmitting) return;
-    
-    setIsSubmitting(true);
-    try {
+    if (messageInput.trim()) {
       await sendMessage(messageInput);
       setMessageInput('');
-    } catch (err) {
-      console.error('Failed to send message:', err);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const handleCreateEvent = async () => {
+    if (eventTitle.trim()) {
+      await createEvent({
+        title: eventTitle,
+        event_type: 'meditation',
+        duration_minutes: 30,
+        chakra_focus: 'heart'
+      });
+      setEventTitle('');
+      setShowEventForm(false);
     }
   };
 
@@ -71,21 +61,6 @@ export const SacredCirclePanel: React.FC = () => {
   ];
 
   const sacredEmojis = ['🙏', '✨', '💜', '🌟', '🧘‍♀️', '🧘‍♂️', '🕉️', '💎', '🌸', '🦋', '🌙', '☀️'];
-
-  // Group messages by date
-  const groupedMessages = messages.reduce((groups, message) => {
-    const date = new Date(message.created_at).toLocaleDateString();
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(message);
-    return groups;
-  }, {} as Record<string, typeof messages>);
-
-  // Sort dates in ascending order
-  const sortedDates = Object.keys(groupedMessages).sort((a, b) => {
-    return new Date(a).getTime() - new Date(b).getTime();
-  });
 
   if (!activeCircle) {
     return (
@@ -111,244 +86,159 @@ export const SacredCirclePanel: React.FC = () => {
               />
             ) : (
               <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                {activeCircle.is_direct_message ? (
-                  <MessageCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <Heart className="w-5 h-5 text-white" />
-                )}
+                <Heart className="w-5 h-5 text-white" />
               </div>
             )}
             <div>
               <h3 className="font-bold text-white">{activeCircle.name}</h3>
               <div className="flex items-center gap-2 text-xs text-gray-400">
-                {!activeCircle.is_direct_message && (
-                  <>
-                    <Users className="w-3 h-3" />
-                    <span>{activeCircle.member_count || 0} members</span>
-                    <span>•</span>
-                  </>
-                )}
-                {activeCircle.is_direct_message ? (
-                  <span>Direct Message</span>
-                ) : (
-                  <>
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    <span>{activeCircle.active_now || 0} active</span>
-                  </>
-                )}
+                <Users className="w-3 h-3" />
+                <span>{activeCircle.member_count} members</span>
+                <span>•</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span>{activeCircle.active_now} active</span>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
             <button
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-              title="Circle Information"
+              onClick={() => setShowEventForm(!showEventForm)}
+              className="p-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors"
             >
-              <Info className="w-4 h-4" />
+              <Calendar className="w-4 h-4" />
             </button>
-            {!activeCircle.is_direct_message && (
-              <button
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="Circle Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            )}
+            <button className="p-2 text-gray-400 hover:text-white transition-colors">
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div 
-        ref={messagesRef}
-        className="h-96 overflow-y-auto p-4 space-y-4"
-      >
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center">
-            <Heart className="w-12 h-12 text-purple-400/30 mb-4" />
-            <p className="text-gray-400 text-center">No messages yet. Be the first to share wisdom!</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {sortedDates.map(date => (
-              <div key={date}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="h-px bg-gray-700 flex-grow"></div>
-                  <div className="text-xs text-gray-400 px-2 py-1 bg-slate-800/70 rounded-full">
-                    {new Date(date).toLocaleDateString(undefined, { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </div>
-                  <div className="h-px bg-gray-700 flex-grow"></div>
-                </div>
-                
-                <div className="space-y-4">
-                  {groupedMessages[date].map(message => {
-                    // Check if profile has been loaded
-                    const profile = profiles[message.user_id];
-                    
-                    // For system messages
-                    if (message.is_system_message) {
-                      return (
-                        <motion.div
-                          key={message.id}
-                          className="flex justify-center"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                        >
-                          <div className="inline-block py-1 px-3 bg-slate-800/70 rounded-lg text-sm text-purple-300">
-                            {message.content}
-                          </div>
-                        </motion.div>
-                      );
-                    }
-
-                    return (
-                      <motion.div
-                        key={message.id}
-                        className={`flex gap-3 ${message.user_id === user?.id ? 'justify-end' : ''}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        {message.user_id !== user?.id && (
-                          <div className="flex-shrink-0">
-                            {profile?.avatar_url ? (
-                              <img 
-                                src={profile.avatar_url} 
-                                alt={profile.full_name || profile.username || 'User'} 
-                                className="w-8 h-8 rounded-full object-cover" 
-                              />
-                            ) : (
-                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-xs font-medium">
-                                  {(profile?.full_name || profile?.username || 'U').charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        <div className={`flex-1 max-w-[75%] flex flex-col ${message.user_id === user?.id ? 'items-end' : 'items-start'}`}>
-                          {message.user_id !== user?.id && (
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium text-white">
-                                {profile?.full_name || profile?.username || 'Unknown User'}
-                              </span>
-                              {message.chakra_energy && (
-                                <div 
-                                  className="w-2 h-2 rounded-full"
-                                  style={{ backgroundColor: getChakraColor(message.chakra_energy as any) }}
-                                />
-                              )}
-                              <span className="text-xs text-gray-400">
-                                {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          )}
-                          
-                          <div 
-                            className={`bg-slate-800/50 rounded-lg p-3 border ${
-                              message.user_id === user?.id 
-                                ? 'border-purple-500/20 text-right'
-                                : 'border-gray-700'
-                            }`}
-                          >
-                            <p className="text-gray-300">{message.content}</p>
-                            
-                            {message.message_type && message.message_type !== 'text' && (
-                              <div className="mt-2 flex items-center gap-2 text-sm">
-                                {message.message_type === 'frequency' && (
-                                  <div className="flex items-center gap-1 text-purple-300">
-                                    <Music className="w-4 h-4" />
-                                    <span>Frequency Shared</span>
-                                  </div>
-                                )}
-                                {message.message_type === 'meditation' && (
-                                  <div className="flex items-center gap-1 text-cyan-300">
-                                    <Sparkles className="w-4 h-4" />
-                                    <span>Meditation Started</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {message.user_id === user?.id && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              {message.id.startsWith('temp-') && (
-                                <span className="ml-2 italic">Sending...</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+      {/* Event Creation Form */}
+      <AnimatePresence>
+        {showEventForm && (
+          <motion.div
+            className="p-4 bg-slate-800/50 border-b border-purple-500/20"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Create Sacred Event
+            </h4>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                placeholder="Event title..."
+                className="w-full p-3 bg-slate-700 text-white rounded-lg border border-gray-600 focus:border-purple-400 focus:outline-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateEvent}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Create Event
+                </button>
+                <button
+                  onClick={() => setShowEventForm(false)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Loading indicator when fetching profiles */}
-        {messages.some(m => !profiles[m.user_id] && !m.is_system_message) && (
-          <div className="flex justify-center my-2">
-            <div className="inline-flex items-center px-3 py-1 bg-slate-800/70 rounded-lg text-xs text-purple-300">
-              <Loader className="w-3 h-3 mr-2 animate-spin" />
-              Loading user details...
             </div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Messages Area */}
+      <div className="h-96 overflow-y-auto p-4 space-y-4">
+        {messages.map(message => (
+          <motion.div
+            key={message.id}
+            className="flex gap-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-medium">
+                {message.user_id.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium text-white">Soul {message.user_id}</span>
+                <div 
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: getChakraColor(message.chakra_energy as any) }}
+                />
+                <span className="text-xs text-gray-400">
+                  {new Date(message.created_at).toLocaleTimeString()}
+                </span>
+                {message.message_type !== 'text' && (
+                  <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded">
+                    {message.message_type}
+                  </span>
+                )}
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-lg p-3 border border-gray-700">
+                <p className="text-gray-300">{message.content}</p>
+                
+                {message.frequency_hz && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-purple-300">
+                    <Music className="w-4 h-4" />
+                    <span>{message.frequency_hz}Hz</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ))}
       </div>
 
       {/* Quick Frequency Actions */}
-      {!activeCircle.is_direct_message && (
-        <div className="p-4 border-t border-purple-500/20 bg-slate-800/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Music className="w-4 h-4 text-purple-400" />
-            <span className="text-sm text-purple-300 font-medium">Quick Frequencies</span>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {quickFrequencies.map((freq) => (
-              <motion.button
-                key={freq.freq}
-                onClick={() => sendFrequency(freq.freq, freq.chakra)}
-                className="p-2 bg-slate-700/50 rounded-lg border border-gray-600 hover:border-purple-500/50 transition-all text-xs"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <div 
-                  className="w-3 h-3 rounded-full mx-auto mb-1"
-                  style={{ backgroundColor: freq.color }}
-                />
-                <div className="text-white font-medium">{freq.freq}Hz</div>
-                <div className="text-gray-400">{freq.name}</div>
-              </motion.button>
-            ))}
-          </div>
+      <div className="p-4 border-t border-purple-500/20 bg-slate-800/30">
+        <div className="flex items-center gap-2 mb-3">
+          <Music className="w-4 h-4 text-purple-400" />
+          <span className="text-sm text-purple-300 font-medium">Quick Frequencies</span>
         </div>
-      )}
+        <div className="grid grid-cols-4 gap-2">
+          {quickFrequencies.map((freq) => (
+            <motion.button
+              key={freq.freq}
+              onClick={() => sendFrequency(freq.freq, freq.chakra)}
+              className="p-2 bg-slate-700/50 rounded-lg border border-gray-600 hover:border-purple-500/50 transition-all text-xs"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div 
+                className="w-3 h-3 rounded-full mx-auto mb-1"
+                style={{ backgroundColor: freq.color }}
+              />
+              <div className="text-white font-medium">{freq.freq}Hz</div>
+              <div className="text-gray-400">{freq.name}</div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
 
       {/* Message Input */}
       <div className="p-4 border-t border-purple-500/20">
         <div className="flex gap-2">
           <div className="flex-1 relative">
-            <textarea
+            <input
+              type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={
-                activeCircle.is_direct_message
-                  ? "Type your message..."
-                  : "Share your sacred message..."
-              }
-              rows={1}
-              className="w-full p-3 pr-20 bg-slate-800 text-white rounded-lg border border-gray-600 focus:border-purple-400 focus:outline-none resize-none"
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Share your sacred message..."
+              className="w-full p-3 pr-20 bg-slate-800 text-white rounded-lg border border-gray-600 focus:border-purple-400 focus:outline-none"
             />
             
             <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
@@ -366,16 +256,11 @@ export const SacredCirclePanel: React.FC = () => {
           
           <motion.button
             onClick={handleSendMessage}
-            disabled={!messageInput.trim() || isSubmitting}
-            className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+            className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            {isSubmitting ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            <Send className="w-4 h-4" />
           </motion.button>
         </div>
 
@@ -407,29 +292,27 @@ export const SacredCirclePanel: React.FC = () => {
         </AnimatePresence>
 
         {/* Quick Actions */}
-        {!activeCircle.is_direct_message && (
-          <div className="mt-3 flex gap-2">
-            <motion.button
-              onClick={() => startGroupMeditation(15, 'heart')}
-              className="flex-1 p-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors text-xs flex items-center justify-center gap-1"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Sparkles className="w-3 h-3" />
-              Start Meditation
-            </motion.button>
-            
-            <motion.button
-              onClick={() => sendMessage('🙏 Sending love and light to all souls here ✨')}
-              className="flex-1 p-2 bg-pink-600/20 text-pink-300 rounded-lg hover:bg-pink-600/30 transition-colors text-xs flex items-center justify-center gap-1"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Heart className="w-3 h-3" />
-              Send Love
-            </motion.button>
-          </div>
-        )}
+        <div className="mt-3 flex gap-2">
+          <motion.button
+            onClick={() => startGroupMeditation(15, 'heart')}
+            className="flex-1 p-2 bg-purple-600/20 text-purple-300 rounded-lg hover:bg-purple-600/30 transition-colors text-xs flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Sparkles className="w-3 h-3" />
+            Start Meditation
+          </motion.button>
+          
+          <motion.button
+            onClick={() => sendMessage('🙏 Sending love and light to all souls here ✨')}
+            className="flex-1 p-2 bg-pink-600/20 text-pink-300 rounded-lg hover:bg-pink-600/30 transition-colors text-xs flex items-center justify-center gap-1"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Heart className="w-3 h-3" />
+            Send Love
+          </motion.button>
+        </div>
       </div>
     </div>
   );

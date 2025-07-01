@@ -29,7 +29,7 @@ type TimelineView = 'overview' | 'node-details' | 'path' | 'activation' | 'refle
 export const DivineTimelineExplorer: React.FC = () => {
   const { user } = useAuth();
   const supabase = SupabaseService.getInstance().client;
-
+  
   const [activeView, setActiveView] = useState<TimelineView>('overview');
   const [timelineNodes, setTimelineNodes] = useState<TimelineNode[]>([]);
   const [timelinePaths, setTimelinePaths] = useState<TimelinePath[]>([]);
@@ -41,69 +41,69 @@ export const DivineTimelineExplorer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [analyzeResults, setAnalyzeResults] = useState<Record<string, any> | null>(null);
-
+  
   useEffect(() => {
     if (user?.id) {
       loadTimeline();
     }
   }, [user?.id]);
-
+  
   const loadTimeline = async () => {
     if (!user?.id) return;
-
+    
     setIsLoading(true);
     setError(null);
-
+    
     try {
       console.log('[DivineTimelineExplorer] Loading timeline data...');
-
+      
       // Check if timeline exists
       const { data: existingNodes, error: nodesError } = await supabase
         .from('timeline_nodes')
         .select('*')
         .eq('user_id', user.id);
-
+      
       if (nodesError) throw nodesError;
-
+      
       console.log('[DivineTimelineExplorer] Fetched nodes:', existingNodes?.length || 0);
-
+      
       if (existingNodes && existingNodes.length > 0) {
         // Timeline exists, load it
         setTimelineNodes(existingNodes);
-
+        
         // Load paths
         const { data: pathsData, error: pathsError } = await supabase
           .from('timeline_paths')
           .select('*')
           .eq('user_id', user.id);
-
+        
         if (pathsError) throw pathsError;
-
+        
         console.log('[DivineTimelineExplorer] Fetched paths:', pathsData?.length || 0);
         setTimelinePaths(pathsData || []);
-
+        
         // Load reflections
         const { data: reflectionsData, error: reflectionsError } = await supabase
           .from('timeline_reflections')
           .select('*')
           .eq('user_id', user.id);
-
+        
         if (reflectionsError) throw reflectionsError;
-
+        
         console.log('[DivineTimelineExplorer] Fetched reflections:', reflectionsData?.length || 0);
         setReflections(reflectionsData || []);
-
+        
         // Load activations
         const { data: activationsData, error: activationsError } = await supabase
           .from('timeline_activations')
           .select('*')
           .eq('user_id', user.id);
-
+        
         if (activationsError) throw activationsError;
-
+        
         console.log('[DivineTimelineExplorer] Fetched activations:', activationsData?.length || 0);
         setActivations(activationsData || []);
-
+        
         // Analyze trends
         await analyzeConsciousnessTrends();
       } else {
@@ -118,7 +118,7 @@ export const DivineTimelineExplorer: React.FC = () => {
       setIsLoading(false);
     }
   };
-
+  
   const renderEmptyState = () => (
     <div className="bg-slate-900/70 backdrop-blur-sm rounded-xl border border-purple-500/20 p-8">
       <div className="text-center max-w-md mx-auto">
@@ -128,13 +128,13 @@ export const DivineTimelineExplorer: React.FC = () => {
           </div>
           <div className="absolute inset-0 w-24 h-24 mx-auto border-2 border-purple-400/30 rounded-full animate-pulse"></div>
         </div>
-
+        
         <h3 className="text-xl font-bold text-white mb-3">Your Divine Timeline Awaits</h3>
         <p className="text-gray-400 mb-6">
-          Discover your spiritual evolution path and potential future scenarios.
+          Discover your spiritual evolution path and potential future scenarios. 
           Generate your personalized timeline to explore past insights, present awareness, and future possibilities.
         </p>
-
+        
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-3 text-sm text-gray-300">
             <div className="p-1 bg-purple-600/20 rounded-full">
@@ -155,7 +155,7 @@ export const DivineTimelineExplorer: React.FC = () => {
             <span>Activate future potentials through intention</span>
           </div>
         </div>
-
+        
         <button
           onClick={generateTimeline}
           disabled={isGenerating}
@@ -173,23 +173,23 @@ export const DivineTimelineExplorer: React.FC = () => {
             </>
           )}
         </button>
-
+        
         <p className="text-xs text-gray-500 mt-4">
           This will create a personalized map of your spiritual evolution based on consciousness principles.
         </p>
       </div>
     </div>
   );
-
+  
   const generateTimeline = async () => {
     if (!user?.id) return;
-
+    
     setIsGenerating(true);
     setError(null);
-
+    
     try {
       console.log('[DivineTimelineExplorer] Generating new timeline...');
-
+      
       // Generate a set of nodes representing past, present, and future points
       const presentNode: Partial<TimelineNode> = {
         user_id: user.id,
@@ -203,17 +203,17 @@ export const DivineTimelineExplorer: React.FC = () => {
         is_pivot_point: true,
         is_activated: true
       };
-
+      
       // Create present node
       const { data: presentData, error: presentError } = await supabase
         .from('timeline_nodes')
         .insert(presentNode)
         .select()
         .single();
-
+      
       if (presentError) throw presentError;
       console.log('[DivineTimelineExplorer] Created present node:', presentData);
-
+      
       // Create past nodes
       const pastNodes = [
         {
@@ -241,15 +241,15 @@ export const DivineTimelineExplorer: React.FC = () => {
           is_activated: true
         }
       ];
-
+      
       const { data: pastData, error: pastError } = await supabase
         .from('timeline_nodes')
         .insert(pastNodes)
         .select();
-
+      
       if (pastError) throw pastError;
       console.log('[DivineTimelineExplorer] Created past nodes:', pastData?.length || 0);
-
+      
       // Create future nodes
       const futureNodes = [
         // Optimal path nodes
@@ -292,7 +292,7 @@ export const DivineTimelineExplorer: React.FC = () => {
           is_pivot_point: false,
           is_activated: false
         },
-
+        
         // Challenge path nodes
         {
           user_id: user.id,
@@ -320,7 +320,7 @@ export const DivineTimelineExplorer: React.FC = () => {
           is_pivot_point: false,
           is_activated: false
         },
-
+        
         // Transcendent path nodes
         {
           user_id: user.id,
@@ -349,25 +349,25 @@ export const DivineTimelineExplorer: React.FC = () => {
           is_activated: false
         }
       ];
-
+      
       const { data: futureData, error: futureError } = await supabase
         .from('timeline_nodes')
         .insert(futureNodes)
         .select();
-
+      
       if (futureError) throw futureError;
       console.log('[DivineTimelineExplorer] Created future nodes:', futureData?.length || 0);
-
+      
       // Combine all nodes
       const allNodes = [presentData, ...(pastData || []), ...(futureData || [])];
       setTimelineNodes(allNodes);
-
+      
       // Create timeline paths
       await createTimelinePaths(user.id, allNodes);
-
+      
       // Load complete timeline
       await loadTimeline();
-
+      
     } catch (err) {
       console.error('Error generating timeline:', err);
       setError('Failed to generate your divine timeline. Please try again.');
@@ -375,21 +375,21 @@ export const DivineTimelineExplorer: React.FC = () => {
       setIsGenerating(false);
     }
   };
-
+  
   const createTimelinePaths = async (userId: string, nodes: TimelineNode[]) => {
     try {
       console.log('[DivineTimelineExplorer] Creating timeline paths...');
-
+      
       // Find the present node
       const presentNode = nodes.find(n => n.timeline_position === 'present');
       if (!presentNode) return;
-
+      
       // Organize future nodes by probability
       const futureNodes = nodes.filter(n => n.timeline_position === 'future');
       const optimalNodes = futureNodes.filter(n => n.probability >= 60);
       const challengeNodes = futureNodes.filter(n => n.probability < 60 && n.probability >= 40);
       const transcendentNodes = futureNodes.filter(n => n.probability < 40);
-
+      
       // Create path objects
       const paths: Partial<TimelinePath>[] = [
         {
@@ -411,7 +411,7 @@ export const DivineTimelineExplorer: React.FC = () => {
           consciousness_delta: 20 // From 50 to 70
         }
       ];
-
+      
       // Add transcendent path if there are nodes for it
       if (transcendentNodes.length > 0) {
         paths.push({
@@ -424,30 +424,30 @@ export const DivineTimelineExplorer: React.FC = () => {
           consciousness_delta: 45 // From 50 to 95
         });
       }
-
+      
       // Insert paths into database
       const { data, error } = await supabase
         .from('timeline_paths')
         .insert(paths)
         .select();
-
+      
       if (error) throw error;
       console.log('[DivineTimelineExplorer] Created timeline paths:', data?.length || 0);
-
+      
       setTimelinePaths(data);
-
+      
     } catch (err) {
       console.error('Error creating timeline paths:', err);
       throw err;
     }
   };
-
+  
   const activateTimelineNode = async (nodeId: string, activationType: string, details: string) => {
     if (!user?.id || !nodeId) return;
-
+    
     setIsLoading(true);
     setError(null);
-
+    
     try {
       console.log(`[DivineTimelineExplorer] Activating node: ${nodeId}`);
       // Create activation record
@@ -461,23 +461,23 @@ export const DivineTimelineExplorer: React.FC = () => {
         })
         .select()
         .single();
-
+      
       if (activationError) throw activationError;
-
+      
       // Update node to activated state
       const { error: nodeError } = await supabase
         .from('timeline_nodes')
         .update({ is_activated: true })
         .eq('id', nodeId)
         .eq('user_id', user.id);
-
+      
       if (nodeError) throw nodeError;
-
+      
       console.log('[DivineTimelineExplorer] Node activated successfully');
-
+      
       // Refresh data
       await loadTimeline();
-
+      
       // If this was the selected node, update it
       if (selectedNode && selectedNode.id === nodeId) {
         const updatedNode = timelineNodes.find(n => n.id === nodeId);
@@ -488,10 +488,10 @@ export const DivineTimelineExplorer: React.FC = () => {
           });
         }
       }
-
+      
       // Add the new activation to the list
       setActivations(prev => [activationData, ...prev]);
-
+      
       // Switch to reflection view
       setActiveView('reflection');
     } catch (err) {
@@ -501,20 +501,20 @@ export const DivineTimelineExplorer: React.FC = () => {
       setIsLoading(false);
     }
   };
-
+  
   const addReflection = async (text: string) => {
     if (!user?.id || !selectedNode) return;
-
+    
     setIsLoading(true);
     setError(null);
-
+    
     try {
       console.log(`[DivineTimelineExplorer] Adding reflection for node: ${selectedNode.id}`);
-
+      
       // Calculate consciousness shift (simple simulation)
       const wordCount = text.split(' ').length;
       const consciousnessShift = Math.min(10, Math.max(1, Math.floor(wordCount / 20)));
-
+      
       const { data, error } = await supabase
         .from('timeline_reflections')
         .insert({
@@ -525,17 +525,17 @@ export const DivineTimelineExplorer: React.FC = () => {
         })
         .select()
         .single();
-
+      
       if (error) throw error;
-
+      
       console.log('[DivineTimelineExplorer] Reflection added successfully');
-
+      
       // Add to reflections list
       setReflections(prev => [data, ...prev]);
-
+      
       // Reload timeline to update consciousness levels
       await loadTimeline();
-
+      
       // Switch back to node details
       setActiveView('node-details');
     } catch (err) {
@@ -545,30 +545,30 @@ export const DivineTimelineExplorer: React.FC = () => {
       setIsLoading(false);
     }
   };
-
+  
   const analyzeConsciousnessTrends = async () => {
     if (!user?.id || timelineNodes.length === 0) return;
-
+    
     setIsLoading(true);
-
+    
     try {
       console.log('[DivineTimelineExplorer] Analyzing consciousness trends...');
-
+      
       // Get all activated nodes
       const activatedNodes = timelineNodes.filter(node => node.is_activated);
-
+      
       // Simple trend analysis
       const consciousnessLevels = activatedNodes.map(node => node.consciousness_level);
       const totalReflectionShift = reflections.reduce((sum, r) => sum + r.consciousness_shift, 0);
-      const averageLevel = consciousnessLevels.reduce((sum, level) => sum + level, 0) /
+      const averageLevel = consciousnessLevels.reduce((sum, level) => sum + level, 0) / 
         (consciousnessLevels.length || 1);
-
+      
       const nodeDates = activatedNodes.map(node => {
         const date = new Date();
         date.setDate(date.getDate() + node.time_distance);
         return date.toISOString().split('T')[0];
       });
-
+      
       const results = {
         consciousnessLevels,
         nodeDates,
@@ -576,10 +576,10 @@ export const DivineTimelineExplorer: React.FC = () => {
         totalReflectionShift,
         reflectionsCount: reflections.length,
         activatedNodesCount: activatedNodes.length,
-        trend: consciousnessLevels.length > 1 ?
+        trend: consciousnessLevels.length > 1 ? 
           (consciousnessLevels[consciousnessLevels.length - 1] - consciousnessLevels[0]) : 0
       };
-
+      
       console.log('[DivineTimelineExplorer] Analysis results:', results);
       setAnalyzeResults(results);
     } catch (err) {
@@ -588,27 +588,27 @@ export const DivineTimelineExplorer: React.FC = () => {
       setIsLoading(false);
     }
   };
-
+  
   const handleNodeClick = (node: TimelineNode) => {
     setSelectedNode(node);
     setActiveView('node-details');
   };
-
+  
   const handlePathClick = (path: TimelinePath) => {
     setSelectedPath(path);
     setActiveView('path');
   };
-
+  
   const handleActivateClick = () => {
     if (selectedNode) {
       setActiveView('activation');
     }
   };
-
+  
   const getNodeReflections = (nodeId: string) => {
     return reflections.filter(r => r.node_id === nodeId);
   };
-
+  
   const getNodeActivations = (nodeId: string) => {
     return activations.filter(a => a.node_id === nodeId);
   };
@@ -623,10 +623,10 @@ export const DivineTimelineExplorer: React.FC = () => {
           </h2>
           <p className="text-purple-300">Navigate your potential futures and consciousness evolution</p>
         </div>
-
+        
         <div className="flex items-center gap-3">
           <HelpButton moduleType="divine-timeline" />
-
+          
           {timelineNodes.length > 0 && (
             <button
               onClick={analyzeConsciousnessTrends}
@@ -636,16 +636,16 @@ export const DivineTimelineExplorer: React.FC = () => {
               <Brain className="w-5 h-5" />
             </button>
           )}
-
+          
           {timelineNodes.length > 0 && (
-            <button
+            <button 
               onClick={() => setActiveView('journal')}
               className="px-3 py-1 bg-purple-600/20 text-purple-300 rounded border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-sm"
             >
               Reflection Journal
             </button>
           )}
-
+          
           {timelineNodes.length === 0 && (
             <button
               onClick={generateTimeline}
@@ -667,14 +667,14 @@ export const DivineTimelineExplorer: React.FC = () => {
           )}
         </div>
       </div>
-
+      
       {/* Navigation tabs for different views */}
       {timelineNodes.length > 0 && (
         <div className="flex border-b border-gray-700 mb-4 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveView('overview')}
             className={`px-4 py-2 whitespace-nowrap font-medium ${
-              activeView === 'overview' // Already correct, but reviewing for completeness
+              activeView === 'overview'
                 ? 'text-purple-400 border-b-2 border-purple-400'
                 : 'text-gray-400 hover:text-white'
             }`}
@@ -682,12 +682,12 @@ export const DivineTimelineExplorer: React.FC = () => {
             <Map className="w-4 h-4 inline mr-1" />
             Timeline
           </button>
-
+          
           {selectedNode && (
             <button
               onClick={() => setActiveView('node-details')}
               className={`px-4 py-2 whitespace-nowrap font-medium ${
-                activeView === 'node-details' // Changed from activeTab
+                activeView === 'node-details'
                   ? 'text-purple-400 border-b-2 border-purple-400'
                   : 'text-gray-400 hover:text-white'
               }`}
@@ -696,12 +696,12 @@ export const DivineTimelineExplorer: React.FC = () => {
               Node Details
             </button>
           )}
-
+          
           {selectedPath && (
             <button
               onClick={() => setActiveView('path')}
               className={`px-4 py-2 whitespace-nowrap font-medium ${
-                activeView === 'path' // Changed from activeTab
+                activeView === 'path'
                   ? 'text-purple-400 border-b-2 border-purple-400'
                   : 'text-gray-400 hover:text-white'
               }`}
@@ -710,13 +710,13 @@ export const DivineTimelineExplorer: React.FC = () => {
               Path Details
             </button>
           )}
-
+          
           <button
             onClick={() => setActiveView('journal')}
             className={`px-4 py-2 whitespace-nowrap font-medium ${
-              activeView === 'journal' // Changed from activeTab
-                  ? 'text-purple-400 border-b-2 border-purple-400'
-                  : 'text-gray-400 hover:text-white'
+              activeView === 'journal'
+                ? 'text-purple-400 border-b-2 border-purple-400'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             <Calendar className="w-4 h-4 inline mr-1" />
@@ -724,7 +724,7 @@ export const DivineTimelineExplorer: React.FC = () => {
           </button>
         </div>
       )}
-
+      
       {/* Error display */}
       <AnimatePresence>
         {error && (
@@ -755,7 +755,7 @@ export const DivineTimelineExplorer: React.FC = () => {
   return (
     <div className="space-y-6">
       {renderTimelineHeader()}
-
+      
       {isLoading ? (
         <div className="bg-slate-900/70 backdrop-blur-sm rounded-xl border border-purple-500/20 p-8 text-center">
           <div className="relative">
@@ -776,14 +776,14 @@ export const DivineTimelineExplorer: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <TimelineVisualizer
-                nodes={timelineNodes}
-                paths={timelinePaths}
+              <TimelineVisualizer 
+                nodes={timelineNodes} 
+                paths={timelinePaths} 
                 onNodeClick={handleNodeClick}
                 onPathClick={handlePathClick}
                 analyzeResults={analyzeResults}
               />
-
+              
               {/* Path Overview Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                 {timelinePaths.map(path => (
@@ -799,9 +799,9 @@ export const DivineTimelineExplorer: React.FC = () => {
                         {path.probability}% Probable
                       </div>
                     </div>
-
+                    
                     <p className="text-gray-400 text-sm mb-3">{path.description}</p>
-
+                    
                     <div className="flex justify-between items-center text-xs text-gray-500">
                       <div>
                         <span className="text-purple-300">+{path.consciousness_delta}</span> consciousness
@@ -815,7 +815,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               </div>
             </motion.div>
           )}
-
+          
           {activeView === 'node-details' && selectedNode && (
             <motion.div
               key="node-details"
@@ -824,7 +824,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <NodeDetailsPanel
+              <NodeDetailsPanel 
                 node={selectedNode}
                 reflections={getNodeReflections(selectedNode.id)}
                 activations={getNodeActivations(selectedNode.id)}
@@ -833,7 +833,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               />
             </motion.div>
           )}
-
+          
           {activeView === 'path' && selectedPath && (
             <motion.div
               key="path"
@@ -850,7 +850,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               />
             </motion.div>
           )}
-
+          
           {activeView === 'activation' && selectedNode && (
             <motion.div
               key="activation"
@@ -867,7 +867,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               />
             </motion.div>
           )}
-
+          
           {activeView === 'reflection' && selectedNode && (
             <motion.div
               key="reflection"
@@ -884,7 +884,7 @@ export const DivineTimelineExplorer: React.FC = () => {
               />
             </motion.div>
           )}
-
+          
           {activeView === 'journal' && (
             <motion.div
               key="journal-all"
@@ -903,7 +903,7 @@ export const DivineTimelineExplorer: React.FC = () => {
                     Back to Timeline
                   </button>
                 </div>
-
+                
                 {reflections.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -914,7 +914,7 @@ export const DivineTimelineExplorer: React.FC = () => {
                     {reflections.map(reflection => {
                       const node = timelineNodes.find(n => n.id === reflection.node_id);
                       return (
-                        <div
+                        <div 
                           key={reflection.id}
                           className="bg-slate-800/50 rounded-lg border border-gray-700 p-4"
                         >
@@ -932,11 +932,11 @@ export const DivineTimelineExplorer: React.FC = () => {
                               +{reflection.consciousness_shift} Consciousness
                             </div>
                           </div>
-
+                          
                           <div className="mt-2 ml-9 pl-3 border-l border-purple-500/30">
                             <div className="text-sm text-gray-300">"{reflection.reflection_text}"</div>
                           </div>
-
+                          
                           <button
                             onClick={() => {
                               if (node) {

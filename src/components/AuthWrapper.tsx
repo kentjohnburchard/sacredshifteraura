@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { AuthScreen } from './auth/AuthScreen';
+import { AuthPages } from './auth/AuthPages';
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -22,7 +22,7 @@ export const AuthWrapper: React.FC<AuthWrapperProps> = ({ children }) => {
   }
 
   if (!user) {
-    return <AuthScreen />;
+    return <AuthPages />;
   }
 
   return <>{children}</>;

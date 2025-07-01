@@ -19,7 +19,6 @@ interface Circle {
   direct_message_participants?: string[];
   member_count?: number;
   active_now?: number;
-  is_private?: boolean;
 }
 
 interface SacredMessage {
@@ -27,19 +26,17 @@ interface SacredMessage {
   circle_id: string;
   user_id: string;
   content: string;
-  message_type?: string;
-  chakra_energy?: string;
-  vibration_level?: string;
-  is_edited?: boolean;
+  message_type: string;
+  chakra_energy: string;
+  vibration_level: string;
+  is_edited: boolean;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   attachment_url?: string;
   participants?: string[];
   frequency_hz?: number;
   is_system_message?: boolean;
   reactions?: Array<{ userId: string; chakra: string; timestamp: Date }>;
-  // Add a temporary client-side ID to help with optimistic updates
-  temp_id?: string;
 }
 
 interface SacredEvent {
@@ -72,24 +69,12 @@ interface SacredEvent {
   updated_at: string;
 }
 
-interface UserProfile {
-  id: string;
-  username?: string;
-  full_name?: string;
-  avatar_url?: string;
-  light_level?: number;
-  created_at?: string;
-}
-
 interface SacredCircleContextType {
   circles: Circle[];
   activeCircle: Circle | null;
   messages: SacredMessage[];
   events: SacredEvent[];
   isLoading: boolean;
-  error: string | null;
-  profiles: Record<string, UserProfile>;
-
   setActiveCircle: (circle: Circle | null) => void;
   sendMessage: (content: string, type?: string) => Promise<void>;
   sendFrequency: (frequency: number, chakra: string) => Promise<void>;
@@ -98,10 +83,6 @@ interface SacredCircleContextType {
   joinEvent: (eventId: string) => Promise<void>;
   leaveEvent: (eventId: string) => Promise<void>;
   createDirectMessageCircle: (userId: string) => Promise<void>;
-  createCircle: (name: string, description: string, isPrivate: boolean) => Promise<void>;
-  getProfile: (userId: string) => Promise<UserProfile | null>;
-  refreshCircles: () => Promise<void>;
-  refreshMessages: () => Promise<void>;
 }
 
 const SacredCircleContext = createContext<SacredCircleContextType | undefined>(undefined);
@@ -119,17 +100,13 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
   const { activeChakra } = useChakra();
   const { addXP } = useXP();
   const supabase = SupabaseService.getInstance().client;
-
+  
   const [circles, setCircles] = useState<Circle[]>([]);
   const [activeCircle, setActiveCircle] = useState<Circle | null>(null);
   const [messages, setMessages] = useState<SacredMessage[]>([]);
   const [events, setEvents] = useState<SacredEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [realtimeSubscription, setRealtimeSubscription] = useState<{ unsubscribe: () => void } | null>(null);
-  const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load circles on init or when user changes
   useEffect(() => {
     if (user) {
       fetchCircles();
@@ -137,80 +114,83 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
   }, [user?.id]);
 
-  // Set up message subscription when active circle changes
   useEffect(() => {
     if (activeCircle) {
       fetchMessages(activeCircle.id);
-      subscribeToMessages(activeCircle.id);
     } else {
       setMessages([]);
-      if (realtimeSubscription) {
-        realtimeSubscription.unsubscribe();
-        setRealtimeSubscription(null);
-      }
     }
+  }, [activeCircle]);
 
+  // Set up real-time subscription for messages
+  useEffect(() => {
+    if (!activeCircle) return;
+    
+    const channel = supabase
+      .channel(`circle_${activeCircle.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'circle_messages',
+        filter: `circle_id=eq.${activeCircle.id}`
+      }, (payload) => {
+        // Add new message to state
+        const newMessage = payload.new as SacredMessage;
+        setMessages(prev => [...prev, newMessage]);
+      })
+      .subscribe();
+    
     return () => {
-      if (realtimeSubscription) {
-        realtimeSubscription.unsubscribe();
-        setRealtimeSubscription(null);
-      }
+      supabase.removeChannel(channel);
     };
   }, [activeCircle]);
 
-  // Fetch all circles (relying on RLS for filtering)
   const fetchCircles = async () => {
     if (!user) return;
-
+    
     setIsLoading(true);
-    setError(null);
-
     try {
-      console.log('[SacredCircleContext] Fetching circles...');
-
-      const { data: fetchedCircles, error: circlesError } = await supabase
+      // Get circles the user is a member of
+      const { data: memberCircles, error: memberError } = await supabase
+        .from('circle_members')
+        .select(`
+          circle_id,
+          circle:circles(*)
+        `)
+        .eq('user_id', user.id);
+      
+      if (memberError) throw memberError;
+      
+      // Get direct message circles
+      const { data: dmCircles, error: dmError } = await supabase
         .from('circles')
         .select('*')
-        .order('created_at', { ascending: false });
-
-      if (circlesError) throw circlesError;
-
-      console.log('[SacredCircleContext] Fetched circles (RLS applied):', fetchedCircles?.length || 0);
-
-      const processedCircles = await Promise.all((fetchedCircles || []).map(async (circle) => {
-        if (circle.is_direct_message && circle.direct_message_participants) {
-          const otherUserId = circle.direct_message_participants.find(id => id !== user.id);
-          if (otherUserId) {
-            const profile = await getProfile(otherUserId);
-            if (profile) {
-              circle.name = profile.full_name || profile.username || 'Anonymous User';
-            }
-          }
-        } else if (!circle.is_direct_message) {
-          try {
-            const { count, error: countError } = await supabase
-              .from('circle_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('circle_id', circle.id);
-
-            if (!countError) {
-              circle.member_count = count || 0;
-              circle.active_now = Math.floor(Math.random() * Math.max(1, count || 0));
-            }
-          } catch (err) {
-            console.warn(`[SacredCircleContext] Could not fetch member count for circle ${circle.id}:`, err);
-            circle.member_count = 0;
-            circle.active_now = 0;
-          }
-        }
-        return circle;
-      }));
-
-      setCircles(processedCircles);
-
-    } catch (err) {
-      console.error('[SacredCircleContext] Error fetching circles:', err);
-      setError('Failed to load circles. Please try again.');
+        .eq('is_direct_message', true)
+        .contains('direct_message_participants', [user.id]);
+      
+      if (dmError) throw dmError;
+      
+      // Combine and format circles
+      const formattedCircles: Circle[] = [
+        // Extract circles from member relationships
+        ...(memberCircles?.map(mc => ({
+          ...mc.circle,
+          member_count: 0, // Will be populated later
+          active_now: 0 // Will be populated later
+        })) || []),
+        // Add DM circles
+        ...(dmCircles || [])
+      ];
+      
+      // Remove duplicates
+      const uniqueCircles = formattedCircles.filter((c, index, self) => 
+        index === self.findIndex(t => t.id === c.id)
+      );
+      
+      console.log('Fetched circles:', uniqueCircles);
+      setCircles(uniqueCircles);
+    } catch (error) {
+      console.error('Error fetching circles:', error);
     } finally {
       setIsLoading(false);
     }
@@ -218,92 +198,25 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const fetchMessages = async (circleId: string) => {
     if (!user) return;
-
+    
     try {
-      console.log(`[SacredCircleContext] Fetching messages for circle: ${circleId}`);
-
       const { data, error } = await supabase
         .from('circle_messages')
         .select('*')
         .eq('circle_id', circleId)
         .order('created_at', { ascending: true });
-
+      
       if (error) throw error;
-
-      console.log(`[SacredCircleContext] Fetched ${data?.length || 0} messages`);
+      console.log('Fetched messages:', data);
       setMessages(data || []);
-
-      const userIds = new Set<string>();
-      data?.forEach(message => userIds.add(message.user_id));
-
-      for (const userId of userIds) {
-        if (!profiles[userId]) {
-          await getProfile(userId);
-        }
-      }
-    } catch (err) {
-      console.error('[SacredCircleContext] Error fetching messages:', err);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
     }
-  };
-
-  const subscribeToMessages = (circleId: string) => {
-    if (realtimeSubscription) {
-      realtimeSubscription.unsubscribe();
-    }
-
-    console.log(`[SacredCircleContext] Setting up message subscription for circle: ${circleId}`);
-
-    const channel = supabase
-      .channel(`circle_messages_${circleId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'circle_messages',
-        filter: `circle_id=eq.${circleId}`
-      }, (payload) => {
-        console.log('[SacredCircleContext] New message received via real-time:', payload);
-
-        const receivedMessage = payload.new as SacredMessage;
-
-        setMessages(prevMessages => {
-          // Check if there's an optimistic message that matches
-          // We assume content, user_id, and circle_id are sufficient for matching
-          // If you have a 'temp_id' field, that would be even better for a precise match.
-          const existingIndex = prevMessages.findIndex(
-            (msg) =>
-              msg.temp_id === receivedMessage.temp_id || // Match by temp_id if available
-              (msg.content === receivedMessage.content &&
-               msg.user_id === receivedMessage.user_id &&
-               msg.circle_id === receivedMessage.circle_id &&
-               msg.id.startsWith('temp-')) // Ensure we only replace optimistic messages
-          );
-
-          if (existingIndex > -1) {
-            // Replace the optimistic message with the real one
-            const newMessages = [...prevMessages];
-            newMessages[existingIndex] = { ...receivedMessage, temp_id: undefined }; // Remove temp_id after reconciliation
-            console.log('[SacredCircleContext] Reconciled optimistic message.');
-            return newMessages;
-          } else {
-            // If no optimistic message was found (e.g., message from another user), just add it
-            console.log('[SacredCircleContext] Added new message from real-time.');
-            return [...prevMessages, receivedMessage];
-          }
-        });
-
-        // Fetch profile for message author if needed
-        if (!profiles[receivedMessage.user_id]) {
-          getProfile(receivedMessage.user_id);
-        }
-      })
-      .subscribe();
-
-    setRealtimeSubscription({ unsubscribe: () => supabase.removeChannel(channel) });
   };
 
   const fetchEvents = async () => {
     if (!user) return;
-
+    
     try {
       const { data, error } = await supabase
         .from('sacred_events')
@@ -312,100 +225,48 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
           participants:event_participants(*)
         `)
         .order('scheduled_start', { ascending: true });
-
+      
       if (error) throw error;
-
+      
+      // Format events with participants
       const formattedEvents = data?.map(event => ({
         ...event,
         participants: event.participants || []
       })) || [];
-
-      console.log('[SacredCircleContext] Fetched events:', formattedEvents.length);
+      
+      console.log('Fetched events:', formattedEvents);
       setEvents(formattedEvents);
-    } catch (err) {
-      console.error('[SacredCircleContext] Error fetching events:', err);
-    }
-  };
-
-  const getProfile = async (userId: string): Promise<UserProfile | null> => {
-    if (profiles[userId]) {
-      return profiles[userId];
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, full_name, avatar_url, light_level, created_at')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-
-      setProfiles(prev => ({
-        ...prev,
-        [userId]: data
-      }));
-
-      return data;
-    } catch (err) {
-      console.error(`[SacredCircleContext] Error fetching profile for user ${userId}:`, err);
-      return null;
+    } catch (error) {
+      console.error('Error fetching events:', error);
     }
   };
 
   const sendMessage = async (content: string, type = 'text') => {
     if (!activeCircle || !user) return;
 
-    const tempMessageId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
     try {
-      const newMessage: Partial<SacredMessage> = {
+      const newMessage = {
         circle_id: activeCircle.id,
         user_id: user.id,
         content,
         message_type: type,
-        is_system_message: false,
-        created_at: new Date().toISOString(),
-        temp_id: tempMessageId // Add a temporary ID for optimistic update reconciliation
+        chakra_energy: activeChakra,
+        vibration_level: 'balanced',
+        is_edited: false
       };
 
-      // Optimistic update: Add message to UI immediately with temp ID
-      const optimisticMessage: SacredMessage = {
-        ...newMessage,
-        id: tempMessageId, // Use temp_id as id for optimistic display
-        created_at: new Date().toISOString()
-      } as SacredMessage;
-
-      setMessages(prev => [...prev, optimisticMessage]);
-      console.log('[SacredCircleContext] Optimistically added message:', optimisticMessage);
-
-
-      // Actually send message to Supabase.
-      // We pass the temp_id here so Supabase can return it in the real-time payload.
-      // You might need to add `temp_id` column to your `circle_messages` table in Supabase,
-      // or rely solely on content+user_id+circle_id for reconciliation if adding a DB column is not feasible.
       const { data, error } = await supabase
         .from('circle_messages')
-        .insert({ ...newMessage, temp_id: tempMessageId }) // Send temp_id to DB if you added the column
+        .insert(newMessage)
         .select();
+      
+      if (error) throw error;
 
-      if (error) {
-        console.error('[SacredCircleContext] Supabase insert error:', error);
-        throw error;
-      }
-
-      addXP(type === 'text' ? 5 : type === 'frequency' ? 10 : 15);
-
-      console.log('[SacredCircleContext] Message successfully sent to DB:', data[0]);
-
-      // The message will be reconciled by the real-time subscription.
-      // We no longer need to manually update state here after a successful DB insert.
-    } catch (err) {
-      console.error('[SacredCircleContext] Error sending message, rolling back optimistic update:', err);
-
-      // Remove optimistic message on error by filtering by temp_id
-      setMessages(prev => prev.filter(m => m.id !== tempMessageId));
-      setError('Failed to send message. Please try again.'); // Optionally set a visible error
+      addXP(type === 'text' ? 5 : 15);
+      console.log('Message sent:', data[0]);
+      // The message will be added to state via the real-time subscription
+    } catch (error) {
+      console.error('Error sending message:', error);
     }
   };
 
@@ -424,6 +285,7 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
     if (!user) return '';
 
     try {
+      // Prepare event data
       const newEvent: Partial<SacredEvent> = {
         title: eventData.title || 'Untitled Event',
         description: eventData.description,
@@ -447,16 +309,18 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
         }
       };
 
+      // Insert event
       const { data, error } = await supabase
         .from('sacred_events')
         .insert(newEvent)
         .select()
         .single();
-
+      
       if (error) throw error;
 
-      console.log('[SacredCircleContext] Created event:', data);
-
+      console.log('Created event:', data);
+      
+      // Add creator as first participant
       const { error: participantError } = await supabase
         .from('event_participants')
         .insert({
@@ -464,34 +328,39 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
           user_id: user.id,
           status: 'confirmed'
         });
-
+      
       if (participantError) throw participantError;
 
+      // Update events list
       await fetchEvents();
-
+      
+      // Award XP
       addXP(50);
-
+      
       return data.id;
-    } catch (err) {
-      console.error('[SacredCircleContext] Error creating event:', err);
+    } catch (error) {
+      console.error('Error creating event:', error);
       return '';
     }
   };
 
   const joinEvent = async (eventId: string) => {
     if (!user) return;
-
+    
     try {
+      // Check if already joined
       const { data: existing, error: checkError } = await supabase
         .from('event_participants')
         .select('*')
         .eq('event_id', eventId)
         .eq('user_id', user.id);
-
+      
       if (checkError) throw checkError;
-
+      
+      // If already joined, do nothing
       if (existing && existing.length > 0) return;
-
+      
+      // Join event
       const { data, error } = await supabase
         .from('event_participants')
         .insert({
@@ -500,59 +369,70 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
           status: 'confirmed'
         })
         .select();
-
+      
       if (error) throw error;
-
-      console.log('[SacredCircleContext] Joined event:', data);
-
+      
+      console.log('Joined event:', data);
+      
+      // Update events list
       await fetchEvents();
-
+      
+      // Award XP
       addXP(10);
-    } catch (err) {
-      console.error('[SacredCircleContext] Error joining event:', err);
+    } catch (error) {
+      console.error('Error joining event:', error);
     }
   };
 
   const leaveEvent = async (eventId: string) => {
     if (!user) return;
-
+    
     try {
       const { error } = await supabase
         .from('event_participants')
         .delete()
         .eq('event_id', eventId)
         .eq('user_id', user.id);
-
+      
       if (error) throw error;
-
+      
+      // Update events list
       await fetchEvents();
-    } catch (err) {
-      console.error('[SacredCircleContext] Error leaving event:', err);
+    } catch (error) {
+      console.error('Error leaving event:', error);
     }
   };
 
   const createDirectMessageCircle = async (userId: string) => {
     if (!user) return;
-
+    
     try {
-      const participantsArray = [user.id, userId].sort();
+      // Check if DM already exists
       const { data: existingDMs, error: checkError } = await supabase
         .from('circles')
         .select('*')
         .eq('is_direct_message', true)
-        .contains('direct_message_participants', participantsArray);
-
+        .containsAll('direct_message_participants', [user.id, userId]);
+      
       if (checkError) throw checkError;
-
+      
+      // If DM already exists, set it as active
       if (existingDMs && existingDMs.length > 0) {
-        console.log('[SacredCircleContext] DM already exists:', existingDMs[0]);
         setActiveCircle(existingDMs[0]);
         return;
       }
-
-      const otherUserProfile = await getProfile(userId);
-
-      const dmName = `Chat with ${otherUserProfile?.full_name || otherUserProfile?.username || 'User'}`;
+      
+      // Get the other user's profile to get their name
+      const { data: otherUser, error: userError } = await supabase
+        .from('profiles')
+        .select('username, full_name')
+        .eq('id', userId)
+        .single();
+      
+      if (userError) throw userError;
+      
+      // Create new DM circle
+      const dmName = `Chat with ${otherUser.full_name || otherUser.username || 'User'}`;
       const { data, error } = await supabase
         .from('circles')
         .insert({
@@ -563,89 +443,30 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
           ascension_tier: 'Seed',
           ascension_points: 0,
           is_direct_message: true,
-          direct_message_participants: participantsArray,
-          is_private: true,
+          direct_message_participants: [user.id, userId]
         })
         .select()
         .single();
-
+      
       if (error) throw error;
-
-      console.log('[SacredCircleContext] Created DM circle:', data);
-
+      
+      console.log('Created DM circle:', data);
+      
+      // Add users as members
       await supabase
-        .from('circle_messages')
-        .insert({
-          circle_id: data.id,
-          user_id: user.id,
-          content: `💜 Direct message conversation started. Messages are private between participants.`,
-          is_system_message: true,
-          created_at: new Date().toISOString()
-        });
-
-      await fetchCircles();
-      setActiveCircle(data);
-    } catch (err) {
-      console.error('[SacredCircleContext] Error creating direct message circle:', err);
-      throw err;
-    }
-  };
-
-  const createCircle = async (name: string, description: string, isPrivate: boolean) => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('circles')
-        .insert({
-          name,
-          description,
-          creator_id: user.id,
-          love_level: 0,
-          ascension_tier: 'Seed',
-          ascension_points: 0,
-          is_direct_message: false,
-          is_private: isPrivate,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const { error: memberError } = await supabase
         .from('circle_members')
-        .insert({
-          circle_id: data.id,
-          user_id: user.id,
-          role: 'creator'
-        });
-
-      if (memberError) throw memberError;
-
-      await supabase
-        .from('circle_messages')
-        .insert({
-          circle_id: data.id,
-          user_id: user.id,
-          content: `✨ Welcome to ${name}! This sacred space was just created.`,
-          is_system_message: true,
-          created_at: new Date().toISOString()
-        });
-
-      console.log('[SacredCircleContext] Created new circle:', data);
-
+        .insert([
+          { circle_id: data.id, user_id: user.id, role: 'member' },
+          { circle_id: data.id, user_id: userId, role: 'member' }
+        ]);
+      
+      // Update circles list and set as active
       await fetchCircles();
       setActiveCircle(data);
-
-      addXP(50);
-    } catch (err) {
-      console.error('[SacredCircleContext] Error creating circle:', err);
-      setError('Failed to create circle. Please try again.');
+    } catch (error) {
+      console.error('Error creating direct message circle:', error);
     }
   };
-
-  const refreshCircles = fetchCircles;
-  const refreshMessages = () => activeCircle ? fetchMessages(activeCircle.id) : Promise.resolve();
 
   return (
     <SacredCircleContext.Provider value={{
@@ -654,9 +475,6 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
       messages,
       events,
       isLoading,
-      error,
-      profiles,
-
       setActiveCircle,
       sendMessage,
       sendFrequency,
@@ -664,11 +482,7 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
       createEvent,
       joinEvent,
       leaveEvent,
-      createDirectMessageCircle,
-      createCircle,
-      getProfile,
-      refreshCircles,
-      refreshMessages
+      createDirectMessageCircle
     }}>
       {children}
     </SacredCircleContext.Provider>

@@ -1,6 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-// Corrected import path for useSacredSystem
-import { useSacredSystem } from "../hooks/useSacredSystem"; // <--- THIS IS THE FIX
 
 interface Particle {
   id: number;
@@ -32,17 +30,6 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
   const particlesRef = useRef<Particle[]>([]);
   const [isActive, setIsActive] = useState(true);
 
-  // You would also need to get soulState and integrityScore here if ConsciousnessVisualizer
-  // directly depends on them for its internal logic, otherwise, remove this useSacredSystem line
-  // If `intention`, `frequency`, `intensity` are passed as props from Dashboard,
-  // then `useSacredSystem` is not needed directly in `ConsciousnessVisualizer`.
-  // Based on your Dashboard.tsx, these are indeed passed as props, so you can likely REMOVE
-  // the `useSacredSystem` import and hook call from *this* component.
-  // I included it in the previous response's example of ConsciousnessMonitor because
-  // that was where I *assumed* soulState would be obtained if not passed as a prop.
-  // Let's confirm if you actually *need* `useSacredSystem` inside ConsciousnessVisualizer itself.
-  // If not, remove the import and any related state/effect.
-
   const getIntentionColors = (intention: string): string[] => {
     switch (intention) {
       case 'soul-remembrance':
@@ -55,9 +42,9 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
         return ['#EC4899', '#F472B6', '#FBBF24', '#FCD34D'];
       case 'daily-alignment':
         return ['#F59E0B', '#D97706', '#FBBF24', '#FCD34D'];
-      case 'healing-frequencies': // This would be the intention if integrity is low
+      case 'healing-frequencies':
         return ['#06B6D4', '#0891B2', '#67E8F9', '#A5F3FC'];
-      default: // 'general' or fallback
+      default:
         return ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE'];
     }
   };
@@ -65,7 +52,7 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
   const createParticle = (x: number, y: number): Particle => {
     const colors = getIntentionColors(intention);
     const maxLife = 120 + Math.random() * 180;
-
+    
     return {
       id: Math.random(),
       x,
@@ -79,7 +66,7 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
     };
   };
 
-  const drawSacredGeometryBackground = (ctx: CanvasRenderingContext2D, width: number, height: number) => { // Fixed type
+  const drawSacredGeometryBackground = (ctx: CanvasRenderContext2D, width: number, height: number) => {
     const centerX = width / 2;
     const centerY = height / 2;
     const time = Date.now() * 0.001;
@@ -98,7 +85,7 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
         const distance = ring * radius;
         const x = centerX + Math.cos(angle) * distance;
         const y = centerY + Math.sin(angle) * distance;
-
+        
         ctx.beginPath();
         ctx.arc(x, y, radius * 0.5, 0, Math.PI * 2);
         ctx.stroke();
@@ -109,17 +96,17 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(time * 0.05);
-
+    
     // Sri Yantra inspired pattern
     ctx.globalAlpha = 0.15;
     ctx.strokeStyle = getIntentionColors(intention)[1];
     ctx.lineWidth = 1.5;
-
+    
     // Triangles
     for (let i = 0; i < 9; i++) {
       const angle = (i * 40) * Math.PI / 180;
       const size = 50 + i * 10;
-
+      
       ctx.beginPath();
       ctx.moveTo(0, -size);
       ctx.lineTo(size * 0.866, size * 0.5);
@@ -127,44 +114,44 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
       ctx.closePath();
       ctx.stroke();
     }
-
+    
     ctx.restore();
     ctx.globalAlpha = 1;
   };
 
-  const drawFrequencyVisualization = (ctx: CanvasRenderingContext2D, width: number, height: number) => { // Fixed type
+  const drawFrequencyVisualization = (ctx: CanvasRenderContext2D, width: number, height: number) => {
     const centerX = width / 2;
     const centerY = height / 2;
     const time = Date.now() * 0.001;
-
+    
     // Frequency-based ripples
     const numRipples = Math.floor(frequency / 100);
     ctx.globalAlpha = 0.3;
-
+    
     for (let i = 0; i < numRipples; i++) {
       const rippleTime = time + i * 0.5;
       const radius = (Math.sin(rippleTime * 2) + 1) * 50 + i * 20;
-
+      
       const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
       gradient.addColorStop(0, 'transparent');
       gradient.addColorStop(0.8, getIntentionColors(intention)[i % getIntentionColors(intention).length] + '40');
       gradient.addColorStop(1, 'transparent');
-
+      
       ctx.strokeStyle = gradient;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       ctx.stroke();
     }
-
+    
     ctx.globalAlpha = 1;
   };
 
-  const updateParticles = (ctx: CanvasRenderingContext2D, width: number, height: number) => { // Fixed type
+  const updateParticles = (ctx: CanvasRenderContext2D, width: number, height: number) => {
     const particles = particlesRef.current;
     const centerX = width / 2;
     const centerY = height / 2;
-
+    
     // Add new particles based on frequency and intensity
     if (particles.length < frequency / 10 * intensity) {
       const numNew = Math.floor(intensity * 3);
@@ -181,57 +168,57 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
     for (let i = particles.length - 1; i >= 0; i--) {
       const particle = particles[i];
       particle.life++;
-
+      
       // Apply sacred geometry movement patterns
       const centerForce = 0.001;
       const dx = centerX - particle.x;
       const dy = centerY - particle.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-
+      
       if (distance > 0) {
         particle.vx += (dx / distance) * centerForce;
         particle.vy += (dy / distance) * centerForce;
       }
-
+      
       // Add slight spiral motion
       const angle = Math.atan2(dy, dx);
       particle.vx += Math.cos(angle + Math.PI / 2) * 0.005;
       particle.vy += Math.sin(angle + Math.PI / 2) * 0.005;
-
+      
       // Damping
       particle.vx *= 0.99;
       particle.vy *= 0.99;
-
+      
       // Update position
       particle.x += particle.vx;
       particle.y += particle.vy;
-
+      
       // Calculate alpha based on life
       const alpha = 1 - (particle.life / particle.maxLife);
-
+      
       if (particle.life >= particle.maxLife) {
         particles.splice(i, 1);
         continue;
       }
-
+      
       // Draw particle
       ctx.globalAlpha = alpha * 0.8;
       ctx.fillStyle = particle.color;
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
       ctx.fill();
-
+      
       // Draw connection lines to nearby particles
       ctx.globalAlpha = alpha * 0.3;
       ctx.strokeStyle = particle.color;
       ctx.lineWidth = 0.5;
-
+      
       for (let j = i + 1; j < particles.length; j++) {
         const other = particles[j];
         const dx = other.x - particle.x;
         const dy = other.y - particle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-
+        
         if (distance < 50) {
           ctx.beginPath();
           ctx.moveTo(particle.x, particle.y);
@@ -240,52 +227,52 @@ const ConsciousnessVisualizer: React.FC<ConsciousnessVisualizerProps> = ({
         }
       }
     }
-
+    
     ctx.globalAlpha = 1;
   };
 
   const animate = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
+    
     const { width, height } = canvas;
-
+    
     // Clear canvas with slight trail effect
     ctx.fillStyle = 'rgba(15, 23, 42, 0.1)';
     ctx.fillRect(0, 0, width, height);
-
+    
     // Draw background sacred geometry
     drawSacredGeometryBackground(ctx, width, height);
-
+    
     // Draw frequency visualization
     drawFrequencyVisualization(ctx, width, height);
-
+    
     // Update and draw particles
     updateParticles(ctx, width, height);
-
+    
     animationRef.current = requestAnimationFrame(animate);
   };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
+    
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
     };
-
+    
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-
+    
     if (isActive) {
       animate();
     }
-
+    
     return () => {
       window.removeEventListener('resize', resizeCanvas);
       if (animationRef.current) {

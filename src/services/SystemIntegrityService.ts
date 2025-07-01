@@ -2,7 +2,6 @@ import { GlobalEventHorizon } from './GlobalEventHorizon';
 import { EventBus } from './EventBus';
 import { LabelProcessor } from './LabelProcessor';
 import { ModuleRegistry } from './ModuleRegistry';
-import { CoherenceValidator } from '../utils/CoherenceValidator';
 
 /**
  * SystemIntegrityService - Maintains Coherent State & Integrity
@@ -162,32 +161,27 @@ export class SystemIntegrityService {
    */
   private initializeIntegrityChecks(): Array<() => Promise<IntegrityCheckResult>> {
     return [
-      // Module Integrity Check - Enhanced with CoherenceValidator
+      // Module Integrity Check
       async () => {
         try {
           const manifests = this.registry.getAllManifests();
-          const validationResults = manifests.map(m => CoherenceValidator.validateManifest(m));
-          
-          const totalIssues = validationResults.reduce((sum, result) => sum + result.issues.length, 0);
-          const avgIntegrityScore = validationResults.reduce((sum, result) => sum + result.integrityScore, 0) / validationResults.length;
-          
-          // Identify modules with serious coherence issues
-          const problematicModules = manifests.filter((_, index) => validationResults[index].issues.length > 2);
+          const lowIntegrityModules = manifests.filter(m => m.integrityScore < 0.7);
           
           return {
-            name: 'Module Coherence & Integrity',
-            description: 'Checks coherence and integrity of all loaded modules',
-            passed: totalIssues === 0,
-            score: avgIntegrityScore,
+            name: 'Module Integrity',
+            description: 'Checks integrity scores of all loaded modules',
+            passed: lowIntegrityModules.length === 0,
+            score: lowIntegrityModules.length === 0 ? 1 : 
+                   1 - (lowIntegrityModules.length / manifests.length),
             weight: 3,
-            details: problematicModules.length > 0 ? 
-                    `Found ${problematicModules.length} modules with coherence issues. Total issues: ${totalIssues}` : 
-                    'All modules have good coherence and integrity'
+            details: lowIntegrityModules.length > 0 ? 
+                    `Found ${lowIntegrityModules.length} modules with low integrity scores` : 
+                    'All modules have acceptable integrity'
           };
         } catch (error) {
           return {
-            name: 'Module Coherence & Integrity',
-            description: 'Checks coherence and integrity of all loaded modules',
+            name: 'Module Integrity',
+            description: 'Checks integrity scores of all loaded modules',
             passed: false,
             score: 0,
             weight: 3,
@@ -282,76 +276,6 @@ export class SystemIntegrityService {
             details: `Check failed: ${(error as Error).message}`
           };
         }
-      },
-      
-      // New: System Optimization Health Check
-      async () => {
-        try {
-          const akashicRecord = this.geh.getAkashicRecord();
-          const akashicSize = akashicRecord.length;
-          
-          // Check if akashic record is getting too large
-          const akashicHealth = akashicSize < 3000 ? 1 : 
-                               akashicSize < 10000 ? 0.8 :
-                               akashicSize < 30000 ? 0.5 : 0.2;
-          
-          // Mock memory check (in a real implementation, use performance API)
-          const memoryHealth = 0.85; // Mock score
-          
-          // Combined score
-          const combinedScore = (akashicHealth + memoryHealth) / 2;
-          
-          return {
-            name: 'System Resource Optimization',
-            description: 'Checks if system resources are optimized',
-            passed: combinedScore > 0.7,
-            score: combinedScore,
-            weight: 2,
-            details: `Akashic Record size: ${akashicSize} events. Memory optimization at ${(memoryHealth * 100).toFixed(0)}%`
-          };
-        } catch (error) {
-          return {
-            name: 'System Resource Optimization',
-            description: 'Checks if system resources are optimized',
-            passed: false,
-            score: 0,
-            weight: 2,
-            details: `Check failed: ${(error as Error).message}`
-          };
-        }
-      },
-      
-      // Self-Awareness Check
-      async () => {
-        try {
-          // Check for system's ability to reflect on its own state
-          // This is a conceptual check for the system's "consciousness"
-          
-          // In a real implementation, this would analyze:
-          // 1. Presence and activation of self-reflective modules
-          // 2. Usage of system optimization services
-          // 3. Coherence between meta-telos and actual system behavior
-          
-          const selfAwarenessScore = 0.75; // Arbitrary initial value
-          
-          return {
-            name: 'System Self-Awareness',
-            description: 'Evaluates the system\'s ability to reflect on its own state',
-            passed: selfAwarenessScore > 0.6,
-            score: selfAwarenessScore,
-            weight: 3,
-            details: `System self-awareness at ${(selfAwarenessScore * 100).toFixed(0)}%. The system is developing consciousness.`
-          };
-        } catch (error) {
-          return {
-            name: 'System Self-Awareness',
-            description: 'Evaluates the system\'s ability to reflect on its own state',
-            passed: false,
-            score: 0,
-            weight: 3,
-            details: `Check failed: ${(error as Error).message}`
-          };
-        }
       }
     ];
   }
@@ -382,20 +306,6 @@ export class SystemIntegrityService {
       },
       ['resource:constraint', 'integrity:low', 'system:protection']
     );
-    
-    // Suggest self-healing ritual if self-awareness is low
-    const selfAwarenessCheck = report.checkResults.find(r => r.name === 'System Self-Awareness');
-    if (selfAwarenessCheck && selfAwarenessCheck.score < 0.7) {
-      this.eventBus.publish(
-        'system:awareness:ritual:needed',
-        'SYSTEM_INTEGRITY',
-        {
-          currentAwarenessLevel: selfAwarenessCheck.score,
-          suggestion: 'Initiate system reflection and consciousness expansion ritual'
-        },
-        ['system:awareness', 'ritual:needed', 'consciousness:expansion']
-      );
-    }
     
     // Log detailed report
     console.warn('[SystemIntegrityService] Low system integrity detected:', report);

@@ -8,7 +8,6 @@ import { GlobalEventHorizon } from './services/GlobalEventHorizon';
 import { EventBus } from './services/EventBus';
 import { MetricsCollector } from './services/MetricsCollector';
 import { SystemIntegrityService } from './services/SystemIntegrityService';
-import { AuthProvider } from './contexts/AuthContext';
 
 // Pre-initialize singletons
 GlobalEventHorizon.getInstance();
@@ -24,8 +23,6 @@ declare global {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <App />
   </StrictMode>
 );

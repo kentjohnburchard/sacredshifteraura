@@ -1,4 +1,3 @@
-// src/components/AdminAccessControl.tsx
 import React, { ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -11,7 +10,11 @@ export const AdminAccessControl: React.FC<AdminAccessControlProps> = ({
   children,
   fallbackComponent
 }) => {
-  const { isAdmin } = useAuth(); // Get isAdmin from context
+  const { user } = useAuth();
+  const adminEmail = 'kentburchard@sacredshifter.com';
+
+  // Check if user is the admin
+  const isAdmin = user?.email?.toLowerCase() === adminEmail.toLowerCase();
 
   if (isAdmin) {
     return <>{children}</>;

@@ -11,10 +11,7 @@ import {
   Heart,
   Sparkles,
   MessageCircle,
-  Headphones,
-  RefreshCw,
-  User,
-  Calendar
+  Headphones
 } from 'lucide-react';
 
 interface OnlineUser {
@@ -32,17 +29,46 @@ interface OnlineUser {
 export const UserPresencePanel: React.FC = () => {
   const { user } = useAuth();
   const { getChakraColor } = useChakra();
-  const { createDirectMessageCircle, getProfile } = useSacredCircle();
+  const { createDirectMessageCircle } = useSacredCircle();
   const supabase = SupabaseService.getInstance().client;
   
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showUserSearch, setShowUserSearch] = useState(false);
-  const [searchResults, setSearchResults] = useState<OnlineUser[]>([]);
 
   useEffect(() => {
     if (!user) return;
+    
+    // Fetch online users
+    const fetchOnlineUsers = async () => {
+      try {
+        // Assuming we have a way to determine online users (we're mocking for now)
+        // In a production app, this would query a 'presence' table or use Supabase realtime presence
+        const { data: profilesData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('last_level_up', { ascending: false })
+          .limit(10);
+        
+        if (error) throw error;
+        
+        // Convert profiles to online users
+        const mockUsers: OnlineUser[] = profilesData?.map(profile => ({
+          id: profile.id,
+          name: profile.full_name || profile.username || 'Anonymous User',
+          avatar: profile.avatar_url,
+          status: (Math.random() > 0.5) ? 'online' : (Math.random() > 0.5 ? 'meditation' : 'in-event'),
+          chakra_focus: ['root', 'sacral', 'solar', 'heart', 'throat', 'third-eye', 'crown'][Math.floor(Math.random() * 7)],
+          current_activity: Math.random() > 0.5 ? 'Heart Chakra Circle' : 'Sacred Sound Bath',
+          ascension_tier: profile.ascension_title || 'Seeker',
+          xp_level: profile.light_level || 1
+        })) || [];
+        
+        // Remove current user from the list
+        const filteredUsers = mockUsers.filter(u => u.id !== user.id);
+        setOnlineUsers(filteredUsers);
+      } catch (error) {
+        console.error('Error fetching online users:', error);
+      }
+    };
     
     fetchOnlineUsers();
     
@@ -51,135 +77,6 @@ export const UserPresencePanel: React.FC = () => {
     
     return () => clearInterval(interval);
   }, [user]);
-
-  // Add search effect
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      searchForUsers(searchQuery);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery]);
-
-  const fetchOnlineUsers = async () => {
-    if (!user) return;
-    
-    try {
-      setIsRefreshing(true);
-      
-      // Get users active in the last 15 minutes
-      const fifteenMinutesAgo = new Date();
-      fifteenMinutesAgo.setMinutes(fifteenMinutesAgo.getMinutes() - 15);
-      
-      const { data, error } = await supabase
-        .from('user_activity_logs')
-        .select('user_id, created_at')
-        .gt('created_at', fifteenMinutesAgo.toISOString())
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching active users:', error);
-        return;
-      }
-      
-      // Get unique users
-      const uniqueUserIds = [...new Set(data?.map(item => item.user_id))].filter(id => id !== user.id);
-      
-      if (!uniqueUserIds.length) {
-        setOnlineUsers([]);
-        return;
-      }
-      
-      // Fetch profiles for these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', uniqueUserIds);
-      
-      if (profilesError) {
-        console.error('Error fetching user profiles:', profilesError);
-        return;
-      }
-
-      // Convert to online users format
-      const onlineUsersList: OnlineUser[] = (profiles || []).map(profile => {
-        // Find latest activity timestamp
-        const userActivity = data?.filter(a => a.user_id === profile.id).sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
-        
-        // Randomly assign status for demo purposes
-        const statuses: OnlineUser['status'][] = ['online', 'meditation', 'in-event', 'away'];
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        
-        // Randomly assign chakra
-        const chakras = ['root', 'sacral', 'solar', 'heart', 'throat', 'third-eye', 'crown'];
-        const randomChakra = chakras[Math.floor(Math.random() * chakras.length)];
-        
-        return {
-          id: profile.id,
-          name: profile.full_name || profile.username || 'Anonymous User',
-          avatar: profile.avatar_url || undefined,
-          status: randomStatus,
-          chakra_focus: randomChakra,
-          current_activity: randomStatus === 'meditation' ? 'Heart Chakra Meditation' : 
-                           randomStatus === 'in-event' ? 'Sacred Sound Bath' : undefined,
-          last_seen: userActivity?.created_at,
-          ascension_tier: profile.ascension_title || 'Seeker',
-          xp_level: profile.light_level || 1
-        };
-      });
-      
-      setOnlineUsers(onlineUsersList);
-      
-    } catch (err) {
-      console.error('Error fetching online users:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-  
-  // Search for users function
-  const searchForUsers = async (query: string) => {
-    if (!user || query.length < 2) return;
-    
-    try {
-      // Search for users
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`username.ilike.%${query}%,full_name.ilike.%${query}%,email.ilike.%${query}%`)
-        .neq('id', user.id)
-        .limit(10);
-      
-      if (error) throw error;
-      
-      // Convert to search results
-      const searchResults: OnlineUser[] = (data || []).map(profile => ({
-        id: profile.id,
-        name: profile.full_name || profile.username || 'Anonymous User',
-        avatar: profile.avatar_url || undefined,
-        status: 'online', // Default for search results
-        last_seen: profile.updated_at,
-        ascension_tier: profile.ascension_title || 'Seeker',
-        xp_level: profile.light_level || 1
-      }));
-      
-      setSearchResults(searchResults);
-    } catch (err) {
-      console.error('Error searching for users:', err);
-    }
-  };
-
-  const handleStartDirectMessage = async (userId: string) => {
-    if (!user) return;
-    
-    try {
-      await createDirectMessageCircle(userId);
-    } catch (err) {
-      console.error('Error starting direct message:', err);
-    }
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -210,25 +107,10 @@ export const UserPresencePanel: React.FC = () => {
     }
   };
 
-  const formatLastSeen = (timestamp?: string) => {
-    if (!timestamp) return 'Never';
+  const handleStartDirectMessage = (userId: string) => {
+    if (!user) return;
     
-    const lastSeenDate = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - lastSeenDate.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffDays > 0) {
-      return `${diffDays}d ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours}h ago`;
-    } else if (diffMins > 0) {
-      return `${diffMins}m ago`;
-    } else {
-      return 'Just now';
-    }
+    createDirectMessageCircle(userId);
   };
 
   return (
@@ -238,67 +120,8 @@ export const UserPresencePanel: React.FC = () => {
           <Users className="w-5 h-5 text-purple-400" />
           Sacred Presence
         </h3>
-        
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={fetchOnlineUsers}
-            disabled={isRefreshing}
-            className="p-1 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
-          <div className="text-sm text-purple-300">
-            {onlineUsers.length} souls present
-          </div>
-        </div>
-      </div>
-      
-      {/* User Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for souls..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-800 text-white rounded-lg border border-gray-700 focus:border-purple-400 focus:outline-none"
-          />
-          <User className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-slate-800 rounded-lg border border-gray-700 max-h-64 overflow-y-auto">
-              {searchResults.map(user => (
-                <div 
-                  key={user.id}
-                  className="p-3 hover:bg-slate-700/50 cursor-pointer transition-colors"
-                  onClick={() => handleStartDirectMessage(user.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-medium text-sm">
-                          {user.name.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-sm font-medium text-white">{user.name}</div>
-                      <div className="text-xs text-gray-400">Level {user.xp_level}</div>
-                    </div>
-                    <div className="ml-auto">
-                      <button className="p-1.5 bg-purple-900/30 rounded-full hover:bg-purple-900/50 transition-colors">
-                        <MessageCircle className="w-4 h-4 text-purple-300" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="text-sm text-purple-300">
+          {onlineUsers.length} souls present
         </div>
       </div>
 
@@ -307,7 +130,7 @@ export const UserPresencePanel: React.FC = () => {
           {onlineUsers.map((onlineUser) => (
             <motion.div
               key={onlineUser.id}
-              className="p-3 bg-slate-800/50 rounded-lg border border-gray-700 hover:border-purple-500/50 transition-all relative"
+              className="p-3 bg-slate-800/50 rounded-lg border border-gray-700 hover:border-purple-500/50 transition-all"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
@@ -348,13 +171,7 @@ export const UserPresencePanel: React.FC = () => {
 
                   {onlineUser.current_activity && (
                     <div className="mt-1 text-xs text-gray-400 flex items-center gap-1">
-                      {onlineUser.status === 'meditation' ? (
-                        <Sparkles className="w-3 h-3" />
-                      ) : onlineUser.status === 'in-event' ? (
-                        <Calendar className="w-3 h-3" />
-                      ) : (
-                        <MessageCircle className="w-3 h-3" />
-                      )}
+                      <MessageCircle className="w-3 h-3" />
                       {onlineUser.current_activity}
                     </div>
                   )}
@@ -385,19 +202,6 @@ export const UserPresencePanel: React.FC = () => {
           ))}
         </AnimatePresence>
       </div>
-
-      {onlineUsers.length === 0 && !isRefreshing && (
-        <div className="text-center py-6 text-gray-400">
-          <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p>No souls online right now</p>
-          <button 
-            onClick={fetchOnlineUsers}
-            className="mt-2 text-purple-400 hover:text-purple-300 text-sm"
-          >
-            Refresh
-          </button>
-        </div>
-      )}
 
       <div className="mt-4 p-3 bg-purple-900/20 rounded-lg border border-purple-500/30">
         <div className="text-xs text-purple-300 mb-2 font-medium">Your Presence</div>

@@ -100,12 +100,3 @@ export interface AkashicQuery {
   essenceLabels?: OSLabel[];
   limit?: number;
 }
-
-// Re-export PHRE types
-export * from './phre';
-
-// Export Self-Generative Core types
-export * from './sgc';
-// src/types/index.ts
-
-export * from './aura'; // Add this line
