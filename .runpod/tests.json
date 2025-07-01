@@ -1,0 +1,11 @@
+{
+  "tests": [
+    {
+      "name": "basic-gen",
+      "input": {
+        "prompt": "Whisper a sacred truth"
+      },
+      "timeout": 20000
+    }
+  ]
+}
