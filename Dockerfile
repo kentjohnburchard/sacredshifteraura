@@ -8,7 +8,12 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # Copy code
 WORKDIR /app
-COPY . /app
+COPY ["app", "requirements.txt", "start.sh"] /app/
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install Python deps
 RUN pip install --no-cache-dir -r requirements.txt
