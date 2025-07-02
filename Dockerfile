@@ -1,25 +1,19 @@
-FROM python:3.10
+FROM python:3.10-slim
 
-# Avoid interactive prompts
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install system deps for torch + transformers
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-# Copy code
-WORKDIR /app
-COPY ["app", "requirements.txt", "start.sh"] /app/
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Install only what's needed
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+ && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install Python deps
+WORKDIR /app
+COPY ["app", "requirements.txt", "start.sh"] /app/
+RUN chmod +x start.sh
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port
 EXPOSE 7860
 
-# Start server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
