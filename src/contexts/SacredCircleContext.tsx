@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { useChakra } from './ChakraContext';
 import { useXP } from './XPProvider';
 import { SupabaseService } from '../services/SupabaseService';
+import { getOrCreateDmCircle } from '../modules/SacredCircle/services/dmCircleService';
 
 interface Circle {
   id: string;
@@ -161,12 +162,12 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
       
       if (memberError) throw memberError;
       
-      // Get direct message circles
+      // Get direct message circles using .overlaps for "any match"
       const { data: dmCircles, error: dmError } = await supabase
         .from('circles')
         .select('*')
         .eq('is_direct_message', true)
-        .contains('direct_message_participants', [user.id]);
+        .overlaps('direct_message_participants', [user.id]);
       
       if (dmError) throw dmError;
       
@@ -407,62 +408,14 @@ export const SacredCircleProvider: React.FC<{ children: ReactNode }> = ({ childr
     if (!user) return;
     
     try {
-      // Check if DM already exists
-      const { data: existingDMs, error: checkError } = await supabase
-        .from('circles')
-        .select('*')
-        .eq('is_direct_message', true)
-        .containsAll('direct_message_participants', [user.id, userId]);
+      // Use the new service function that handles .contains properly
+      const dmCircle = await getOrCreateDmCircle(supabase, user.id, userId);
       
-      if (checkError) throw checkError;
-      
-      // If DM already exists, set it as active
-      if (existingDMs && existingDMs.length > 0) {
-        setActiveCircle(existingDMs[0]);
-        return;
-      }
-      
-      // Get the other user's profile to get their name
-      const { data: otherUser, error: userError } = await supabase
-        .from('profiles')
-        .select('username, full_name')
-        .eq('id', userId)
-        .single();
-      
-      if (userError) throw userError;
-      
-      // Create new DM circle
-      const dmName = `Chat with ${otherUser.full_name || otherUser.username || 'User'}`;
-      const { data, error } = await supabase
-        .from('circles')
-        .insert({
-          name: dmName,
-          description: 'Private conversation',
-          creator_id: user.id,
-          love_level: 0,
-          ascension_tier: 'Seed',
-          ascension_points: 0,
-          is_direct_message: true,
-          direct_message_participants: [user.id, userId]
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      console.log('Created DM circle:', data);
-      
-      // Add users as members
-      await supabase
-        .from('circle_members')
-        .insert([
-          { circle_id: data.id, user_id: user.id, role: 'member' },
-          { circle_id: data.id, user_id: userId, role: 'member' }
-        ]);
+      console.log('DM circle created/retrieved:', dmCircle);
       
       // Update circles list and set as active
       await fetchCircles();
-      setActiveCircle(data);
+      setActiveCircle(dmCircle);
     } catch (error) {
       console.error('Error creating direct message circle:', error);
     }

@@ -39,6 +39,7 @@ export class SupabaseService {
   private geh: GlobalEventHorizon;
   private realtimeChannel: RealtimeChannel | null = null;
   private isConnected = false;
+  private authStateSubscription: any = null;
 
   private constructor() {
     this._client = createClient(
@@ -46,6 +47,7 @@ export class SupabaseService {
       import.meta.env.VITE_SUPABASE_ANON_KEY || ''
     );
     this.geh = GlobalEventHorizon.getInstance();
+    this.setupAuthStateListener();
   }
 
   public static getInstance(): SupabaseService {
@@ -56,6 +58,36 @@ export class SupabaseService {
   }
 
   /**
+   * Set up auth state listener to handle token refresh failures
+   */
+  private setupAuthStateListener(): void {
+    this.authStateSubscription = this._client.auth.onAuthStateChange(async (event, session) => {
+      console.log('[SupabaseService] Auth state change:', event);
+      
+      // Clean up realtime connections on auth failures
+      if (event === 'TOKEN_REFRESHED_FAILED' || event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        console.log('[SupabaseService] Cleaning up connections due to auth failure');
+        await this.cleanup();
+        
+        this.geh.publish({
+          type: 'supabase:auth:connectionCleaned',
+          sourceId: 'SUPABASE_SERVICE',
+          timestamp: new Date().toISOString(),
+          payload: { event, reason: 'auth_failure' },
+          metadata: { authEvent: event },
+          essenceLabels: ['supabase:auth', 'connection:cleanup', 'security:session']
+        });
+      }
+      
+      // Reinitialize connections on successful sign in
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('[SupabaseService] Reinitializing connections after sign in');
+        await this.initializeRealtime(session.user.id);
+      }
+    });
+  }
+
+  /**
    * Initialize real-time subscriptions
    */
   public async initializeRealtime(userId: string): Promise<void> {
@@ -63,50 +95,59 @@ export class SupabaseService {
       await this._client.removeChannel(this.realtimeChannel);
     }
 
-    this.realtimeChannel = this._client
-      .channel(`user_${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'module_states',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => this.handleModuleStateChange(payload)
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public', 
-          table: 'user_preferences',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => this.handlePreferenceChange(payload)
-      )
-      .subscribe((status) => {
-        console.log('[SupabaseService] Real-time subscription status:', status);
-        this.isConnected = status === 'SUBSCRIBED';
-        
-        this.geh.publish({
-          type: 'supabase:realtime:statusChanged',
-          sourceId: 'SUPABASE_SERVICE',
-          timestamp: new Date().toISOString(),
-          payload: { status, connected: this.isConnected },
-          metadata: { userId },
-          essenceLabels: ['supabase:realtime', 'connection:status', 'cloud:sync']
+    try {
+      this.realtimeChannel = this._client
+        .channel(`user_${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'module_states',
+            filter: `user_id=eq.${userId}`
+          },
+          (payload) => this.handleModuleStateChange(payload)
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public', 
+            table: 'user_preferences',
+            filter: `user_id=eq.${userId}`
+          },
+          (payload) => this.handlePreferenceChange(payload)
+        )
+        .subscribe((status) => {
+          console.log('[SupabaseService] Real-time subscription status:', status);
+          this.isConnected = status === 'SUBSCRIBED';
+          
+          this.geh.publish({
+            type: 'supabase:realtime:statusChanged',
+            sourceId: 'SUPABASE_SERVICE',
+            timestamp: new Date().toISOString(),
+            payload: { status, connected: this.isConnected },
+            metadata: { userId },
+            essenceLabels: ['supabase:realtime', 'connection:status', 'cloud:sync']
+          });
         });
-      });
+    } catch (error) {
+      console.error('[SupabaseService] Failed to initialize realtime:', error);
+      this.isConnected = false;
+    }
   }
 
   /**
-   * Sync module states to cloud
+   * Sync module states to cloud with better error handling
    */
   public async syncModuleStates(moduleStates: Record<string, boolean>): Promise<void> {
     try {
-      const { data: { user } } = await this._client.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user }, error: userError } = await this._client.auth.getUser();
+      
+      if (userError || !user) {
+        console.warn('[SupabaseService] User not authenticated for sync:', userError?.message);
+        return; // Don't throw, just skip sync
+      }
 
       console.log('[SupabaseService] Syncing module states to cloud:', moduleStates);
 
@@ -149,17 +190,21 @@ export class SupabaseService {
       }
     } catch (error) {
       console.error('[SupabaseService] Failed to sync module states:', error);
-      throw error;
+      // Don't throw - let the app continue working offline
     }
   }
 
   /**
-   * Load module states from cloud
+   * Load module states from cloud with better error handling
    */
   public async loadModuleStates(): Promise<Record<string, boolean>> {
     try {
-      const { data: { user } } = await this._client.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user }, error: userError } = await this._client.auth.getUser();
+      
+      if (userError || !user) {
+        console.warn('[SupabaseService] User not authenticated for load:', userError?.message);
+        return {}; // Return empty state instead of throwing
+      }
 
       const { data, error } = await this._client
         .from('module_states')
@@ -168,7 +213,7 @@ export class SupabaseService {
 
       if (error) {
         console.error('[SupabaseService] Failed to load module states:', error);
-        throw error;
+        return {}; // Return empty state instead of throwing
       }
 
       const moduleStates: Record<string, boolean> = {};
@@ -190,17 +235,21 @@ export class SupabaseService {
       return moduleStates;
     } catch (error) {
       console.error('[SupabaseService] Failed to load module states:', error);
-      throw error;
+      return {}; // Return empty state instead of throwing
     }
   }
 
   /**
-   * Save user preference
+   * Save user preference with better error handling
    */
   public async savePreference(key: string, value: any): Promise<void> {
     try {
-      const { data: { user } } = await this._client.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user }, error: userError } = await this._client.auth.getUser();
+      
+      if (userError || !user) {
+        console.warn('[SupabaseService] User not authenticated for preference save:', userError?.message);
+        return; // Don't throw, just skip save
+      }
 
       const { error } = await this._client
         .from('user_preferences')
@@ -215,7 +264,7 @@ export class SupabaseService {
 
       if (error) {
         console.error('[SupabaseService] Failed to save preference:', error);
-        throw error;
+        return; // Don't throw, just log error
       }
 
       this.geh.publish({
@@ -228,17 +277,21 @@ export class SupabaseService {
       });
     } catch (error) {
       console.error('[SupabaseService] Failed to save preference:', error);
-      throw error;
+      // Don't throw - let the app continue working
     }
   }
 
   /**
-   * Load user preference
+   * Load user preference with better error handling
    */
   public async loadPreference(key: string): Promise<any> {
     try {
-      const { data: { user } } = await this._client.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user }, error: userError } = await this._client.auth.getUser();
+      
+      if (userError || !user) {
+        console.warn('[SupabaseService] User not authenticated for preference load:', userError?.message);
+        return null; // Return null instead of throwing
+      }
 
       const { data, error } = await this._client
         .from('user_preferences')
@@ -249,13 +302,13 @@ export class SupabaseService {
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
         console.error('[SupabaseService] Failed to load preference:', error);
-        throw error;
+        return null; // Return null instead of throwing
       }
 
       return data?.preference_value || null;
     } catch (error) {
       console.error('[SupabaseService] Failed to load preference:', error);
-      throw error;
+      return null; // Return null instead of throwing
     }
   }
 
@@ -296,7 +349,7 @@ export class SupabaseService {
   public async getAnalytics(moduleId?: string, timeRange?: { start: Date; end: Date }): Promise<AnalyticsRecord[]> {
     try {
       const { data: { user } } = await this._client.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      if (!user) return []; // Return empty array instead of throwing
 
       let query = this._client
         .from('module_analytics')
@@ -318,13 +371,13 @@ export class SupabaseService {
 
       if (error) {
         console.error('[SupabaseService] Failed to load analytics:', error);
-        throw error;
+        return []; // Return empty array instead of throwing
       }
 
       return data || [];
     } catch (error) {
       console.error('[SupabaseService] Failed to load analytics:', error);
-      throw error;
+      return []; // Return empty array instead of throwing
     }
   }
 
@@ -384,6 +437,19 @@ export class SupabaseService {
       this.realtimeChannel = null;
     }
     this.isConnected = false;
+    
+    console.log('[SupabaseService] Connections cleaned up');
+  }
+
+  /**
+   * Cleanup on service destruction
+   */
+  public destroy(): void {
+    if (this.authStateSubscription) {
+      this.authStateSubscription.subscription?.unsubscribe();
+      this.authStateSubscription = null;
+    }
+    this.cleanup();
   }
 
   /**

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../../contexts/AuthContext';
+import { SupabaseService } from '../../../services/SupabaseService';
 import { SoulBlueprint } from '../SoulBlueprintingModule';
 import { TaskBlueprintManager } from './TaskBlueprintManager';
 import { BlueprintTasksView } from './BlueprintTasksView';
